@@ -165,6 +165,7 @@ import triton.language as tl
 
 #### START KERNEL
 
+
 @triton.autotune(
     configs=[
         triton.Config(
@@ -554,6 +555,8 @@ def matmul_kernel(
 def leaky_relu(x):
     x = x + 1
     return tl.where(x >= 0, x, 0.01 * x)
+
+
 #### END KERNEL
 
 # %%

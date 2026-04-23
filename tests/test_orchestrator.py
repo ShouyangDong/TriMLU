@@ -373,7 +373,7 @@ class TestTestResult(unittest.TestCase):
         if hasattr(result, "to_dict"):
             result_dict = result.to_dict()
             self.assertIsInstance(result_dict, dict)
-            self.assertIn("success", result_dict)
+            self.assertIn("pass_call", result_dict)
         else:
             self.skipTest("TestResult does not have to_dict method")
 
