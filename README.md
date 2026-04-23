@@ -40,20 +40,20 @@ def matmul_kernel(A, B, C, BLOCK_SIZE: tl.constexpr):
 
 ## ⚡ 3. 运行转换 (Execute Conversion)
 
-你可以通过 `core/runner.py` 脚本启动自动化流水线，并根据需要切换不同的 LLM 后端。
+你可以通过 `run_clinet.py` 脚本启动自动化流水线，并根据需要切换不同的 LLM 后端。
 
 ### 基础运行 (默认使用 OpenAI)
 ```bash
-python3 core/runner.py my_kernel.py
+python3 run_clinet.py my_kernel.py
 ```
 
 ### 切换模型后端 (Claude 或 Gemini)
 ```bash
 # 使用 Claude 3.5 Sonnet
-python3 core/runner.py my_kernel.py --model-type claude --model-id claude-3-5-sonnet-20240620
+python3 run_clinet.py my_kernel.py --model-type claude --model-id claude-3-5-sonnet-20240620
 
 # 使用 Gemini 1.5 Pro
-python3 core/runner.py my_kernel.py --model-type gemini --model-id gemini-1.5-pro
+python3 run_clinet.py my_kernel.py --model-type gemini --model-id gemini-1.5-pro
 ```
 
 ### 常用可选参数
