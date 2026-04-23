@@ -29,6 +29,7 @@ def get_device() -> str:
     return f"mlu:{torch.cuda.current_device()}"
 
 
+#### START KERNEL
 @triton.jit
 def triple_implicit_gemm_conv1d_fwd_kernel(
     output_ptr_0,
@@ -178,6 +179,9 @@ def triton_implicit_gemm_conv1d_fwd(
     )
 
     return output0
+
+
+#### END KERNEL
 
 
 def kernel_test_1d(inputs):
