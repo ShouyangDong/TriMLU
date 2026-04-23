@@ -118,13 +118,10 @@ class TriMLUOrchestrator:
                 text=True,
             )
             if proc.returncode != 0:
-                return TestResult(
-                    kernel_name, success=False, error=proc.stderr, pass_call=False
-                )
+                return TestResult(success=False, error=proc.stderr, pass_call=False)
 
             # 这里应添加真实的数值校验逻辑，此处模拟成功
             return TestResult(
-                kernel_name,
                 success=True,
                 pass_call=True,
                 pass_exe=True,

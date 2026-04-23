@@ -1,5 +1,5 @@
 from core.orchestrator import TriMLUOrchestrator
-from core.llm_model import StandardOpenAIModel
+from core.llm_model import OpenAIModel
 from utils import print_header, print_config
 import os
 
@@ -20,7 +20,7 @@ def run_trimlu_optimization(
     # 配置 API 和模型
     final_api_key = api_key or os.getenv("OPENAI_API_KEY")
     final_azure_endpoint = azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
-    model = StandardOpenAIModel(
+    model = OpenAIModel(
         model_id=model_id,
         api_key=final_api_key,
         azure_endpoint=final_azure_endpoint,
