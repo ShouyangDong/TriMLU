@@ -1,26 +1,3 @@
-"""
-Fused Softmax
-=============
-
-In this tutorial, you will write a fused softmax operation that is significantly faster
-than PyTorch's naive op for a particular class of matrices: those whose rows can fit in
-the MLU's RAM resources.
-
-In doing so, you will learn about:
-
-* The benefits of kernel fusion for bandwidth-bound operations.
-
-* Reduction operators in Triton.
-
-"""
-
-# %%
-# Motivations
-# -----------
-#
-# Custom MLU kernels for elementwise additions are educationally valuable but won't get you very far in practice.
-# Let us consider instead the case of a simple (numerically stabilized) softmax operation:
-
 import torch
 import torch_mlu
 
@@ -48,6 +25,9 @@ def align(max_block, dtype):
     return max_block if max_block == a else a // 2
 
 
+#### START KERNEL
+
+
 @torch.jit.script
 def naive_softmax(x):
     """Compute row-wise softmax of X using native pytorch
@@ -67,24 +47,6 @@ def naive_softmax(x):
     ret = numerator / denominator[:, None]
     # in total: read 5MN + 2M elements ; wrote 3MN + 2M elements
     return ret
-
-
-# %%
-# When implemented naively in PyTorch, computing :code:`y = naive_softmax(x)` for :math:`x \in R^{M \times N}`
-# requires reading :math:`5MN + 2M` elements from DRAM and writing back :math:`3MN + 2M` elements.
-# This is obviously wasteful; we'd prefer to have a custom "fused" kernel that only reads
-# X once and does all the necessary computations on-chip.
-# Doing so would require reading and writing back only :math:`MN` bytes, so we could
-# expect a theoretical speed-up of ~4x (i.e., :math:`(8MN + 4M) / 2MN`).
-# The `torch.jit.script` flags aims to perform this kind of "kernel fusion" automatically
-# but, as we will see later, it is still far from ideal.
-
-# %%
-# Compute Kernel
-# --------------
-#
-# Our softmax kernel works as follows: each program loads `OUTER_ROW_BLOCK` row of the input matrix X,
-# normalizes it and writes back the result to the output Y.
 
 
 def config_prune(configs, named_args, **kwargs):
@@ -291,10 +253,6 @@ def softmax_kernel_inner(
                 tl.store(output_ptr + offset, o, mask=mask)
 
 
-# %%
-# We can create a helper function that enqueues the kernel and its (meta-)arguments for any given input tensor.
-
-
 def softmax(x):
     n_rows, n_cols = x.shape
     BLOCK_SIZE = n_cols
@@ -304,3 +262,6 @@ def softmax(x):
     grid = lambda META: (TOTAL_CORE_NUM // META["num_warps"], 1, 1)
     softmax_kernel_inner[(grid)](y, x, n_rows, n_cols, bottleneck="simd")
     return y
+
+
+#### END KERNEL

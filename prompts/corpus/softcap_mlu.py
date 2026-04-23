@@ -8,7 +8,7 @@ import triton.backends.mlu.driver as driver
 _devprob = driver.BangUtils().get_device_properties(torch.mlu.current_device())
 TOTAL_CORE_NUM = _devprob.get("cluster_num") * _devprob.get("core_num_per_cluster")
 
-libdevice.fast_dividef
+#### START KERNEL
 
 
 def get_autotune_config():
@@ -59,11 +59,6 @@ def softcap_fwd_kernel(
         y = softcap * (
             triton.language.extra.mlu.libdevice.fast_tanh(x.to(tl.float32) * coef)
         )
-        # y = softcap * (triton.language.extra.mlu.libdevice.ultra_tanh(x.to(tl.float32) * coef))
-        # y = softcap * (libdevice.fast_tanh(x.to(tl.float32) * coef)).to(x.dtype)
-        # y = softcap * (libdevice.tanh(x.to(tl.float32) * coef)).to(x.dtype)
-
-        # Write output to DRAM.
         tl.store(y_ptr + offsets, y.to(x.dtype), mask=mask)
 
 
@@ -102,42 +97,6 @@ def softcap_bwd_kernel(
 
         # 3. store dx
         tl.store(dx_ptr + offsets, dx, mask=mask)
-
-
-# @torch.library.custom_op("torch_mlu_triton::fused_softcap", mutates_args=(), device_types="mlu")
-# def fused_softcap(x: torch.Tensor,
-#                  softcap: float) -> torch.Tensor:
-#    assert x.is_contiguous(), "Tensors must be contiguous"
-#    assert x.dtype in [
-#        torch.float32,
-#        torch.bfloat16,
-#        torch.float16,
-#    ]
-#    numel = x.numel()
-#    # Allocates output.
-#    y = torch.empty_like(x)
-#    grid = lambda meta: (min(triton.cdiv(numel, meta['BLOCK_SIZE']), TOTAL_CORE_NUM), )
-#    softcap_fwd_kernel[grid](
-#        x,
-#        y,
-#        numel,
-#        softcap,
-#    )
-#
-#    return y
-#
-# @fused_softcap.register_fake
-# def fused_softcap_fake(x: torch.Tensor,
-#                       softcap: float) -> torch.Tensor:
-#    assert x.is_contiguous(), "Tensors must be contiguous"
-#    assert x.dtype in [
-#        torch.float32,
-#        torch.bfloat16,
-#        torch.float16,
-#    ]
-#    # Allocates output.
-#    y = torch.empty_like(x)
-#    return y
 
 
 class Softcap(torch.autograd.Function):
@@ -185,23 +144,4 @@ class Softcap(torch.autograd.Function):
         return dx, None
 
 
-"""
-@pytest.mark.parametrize("dtype", DTYPES)
-@pytest.mark.parametrize("input_size", INPUT_SIZES)
-def test_softcap(dtype, input_size):
-    softcap = 50.0
-    x = torch.randn((input_size, input_size), dtype=dtype, device="mlu").requires_grad_()
-    y = Softcap.apply(x, softcap)
-    dy = torch.randn_like(y)
-    y.backward(dy)
-    triton_dx, x.grad = x.grad.clone(), None
-
-    ref = softcap * torch.tanh(x.to(torch.float32) / softcap).to(dtype)
-    ref.backward(dy)
-    torch_dx, x.grad = x.grad.clone(), None
-    atol = 1e-3
-    rtol = 1e-3
-
-    assert torch.allclose(y, ref, atol=atol, rtol=rtol)
-    torch.allclose(triton_dx, torch_dx, atol=atol, rtol=rtol)
-"""
+#### END KERNEL

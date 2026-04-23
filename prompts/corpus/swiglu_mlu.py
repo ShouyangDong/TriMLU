@@ -24,6 +24,9 @@ def diff(x, y):
     return f"diff.max: {diff_max:.3f}, diff.avg: {100.0 * diff_sum / (torch.sum(torch.abs(x)).item() + 1e-10):.3f}%"
 
 
+#### START KERNEL
+
+
 def naive_torch_swiglu(x, w_g, w_fc, b_g, b_fc):
     gate = torch.nn.functional.silu(torch.matmul(x, w_g) + b_g)
     fc = torch.matmul(x, w_fc) + b_fc
@@ -304,11 +307,6 @@ def bwd_b_autotune_config_opt():
     return configs
 
 
-# @triton.autotune(
-#    configs=bwd_b_autotune_config_opt(),
-#    key=["real_seq_len", 'N', "perf_mode"],
-#    prune_configs_by={"early_config_prune": do_config_prune},
-# )
 @triton.jit
 def fused_swiglu_bwd_b_kernel_opt(
     dy_ptr,
@@ -736,3 +734,5 @@ class FusedSwiglu(torch.autograd.Function):
         dw_fc = torch.mm(x.t(), dfc)
 
         return dx, dw_g, dw_fc, db_g, db_fc, None, None, None
+
+    #### END KERNEL

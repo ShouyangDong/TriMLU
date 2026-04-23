@@ -10,12 +10,6 @@ _devprob = driver.BangUtils().get_device_properties(torch.mlu.current_device())
 TOTAL_CLUSTER_NUM = _devprob.get("cluster_num")
 TOTAL_CORE_NUM = TOTAL_CLUSTER_NUM * _devprob.get("core_num_per_cluster")
 
-
-# ---------------------------------------------------------------------------
-# Optimized fold-style RoPE kernel (from rotary_embedding.py)
-# Processes input shape (bs, seqlen, head_num, head_size).
-# cos/sin table: (total_tokens, head_size), indexed via token_offsets.
-# ---------------------------------------------------------------------------
 #### START KERNEL
 configs = [
     triton.Config({"BLOCK_M": BM}, num_stages=s, num_warps=w)
@@ -210,10 +204,6 @@ def rope_impl(
 
 
 #### END KERNEL
-
-# ---------------------------------------------------------------------------
-# Public autograd Function — interface unchanged from original rope.py
-# ---------------------------------------------------------------------------
 
 
 class RopeFunc(torch.autograd.Function):

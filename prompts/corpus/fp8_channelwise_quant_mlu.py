@@ -4,6 +4,8 @@ import triton.language as tl
 import time
 from typing import Tuple, List
 
+#### START KERNEL
+
 
 @triton.autotune(
     configs=[
@@ -322,3 +324,6 @@ def channel_granul_fp8_quant(
         )
 
     return y, reciprocal_scale
+
+
+#### END KERNEL
