@@ -629,3 +629,5 @@ class FlashAttentionFunc(torch.autograd.Function):
                 dk = dk.reshape(ctx.k_len, ctx.kv_head, head_group, ctx.qk_dim).sum(2)
                 dv = dv.reshape(ctx.k_len, ctx.kv_head, head_group, ctx.v_dim).sum(2)
         return (dq, dk, dv) + (None,) * 9
+
+        #### END KERNEL

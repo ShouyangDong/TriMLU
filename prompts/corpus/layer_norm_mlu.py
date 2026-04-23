@@ -36,6 +36,8 @@ import triton
 import triton.language as tl
 import triton.backends.mlu.driver as driver
 
+#### START KERNEL
+
 try:
     # This is https://github.com/NVIDIA/apex, NOT the apex on PyPi, so it
     # should not be added to extras_require in setup.py.
@@ -367,3 +369,6 @@ def bench_layer_norm(M, N, dtype, provider, mode="backward", eps=1e-5, device="m
             rep=500,
         )
     return gbps(ms), gbps(max_ms), gbps(min_ms)
+
+
+#### END KERNEL
