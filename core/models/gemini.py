@@ -3,7 +3,7 @@ class GeminiModel:
 
     def __init__(self, model_id="gemini-1.5-pro", api_key=None):
         assert api_key is not None, "No Google API key is provided."
-        
+
         # 配置 Google Generative AI
         genai.configure(api_key=api_key)
         self.model_id = model_id
@@ -21,14 +21,14 @@ class GeminiModel:
         1. system 角色提取为 System Instruction
         2. assistant 角色转换为 model
         """
-        
+
         system_instruction = None
         contents = []
-        
+
         for msg in messages:
             role = msg["role"]
             content = msg["content"]
-            
+
             if role == "system":
                 system_instruction = content
             elif role == "assistant":
@@ -38,8 +38,7 @@ class GeminiModel:
 
         # 初始化模型（带系统指令）
         self.model = genai.GenerativeModel(
-            model_name=self.model_id,
-            system_instruction=system_instruction
+            model_name=self.model_id, system_instruction=system_instruction
         )
 
         generation_config = genai.types.GenerationConfig(
@@ -48,8 +47,7 @@ class GeminiModel:
         )
 
         response = self.model.generate_content(
-            contents,
-            generation_config=generation_config
+            contents, generation_config=generation_config
         )
 
         if not response or not response.text:

@@ -207,6 +207,8 @@ def rope_impl(
 
     # Restore original shape (total_len, head, dim)
     return out_4d.squeeze(0)
+
+
 #### END KERNEL
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import os
 import argparse
 import sys
 
+
 def run_trimlu_optimization(
     kernel_file: str,
     model_type: str = "openai",  # 默认调用 openai，可选: openai, claude, gemini
@@ -53,12 +54,12 @@ def run_trimlu_optimization(
         print(f"🔍 正在加载 Kernel: {kernel_file} (使用模型: {model_type}) ...")
         print_config(
             {
-                "target": target_mlu, 
-                "iters": iteration_num, 
+                "target": target_mlu,
+                "iters": iteration_num,
                 "model": model_id,
-                "provider": model_type
-            }, 
-            "🚀 开始迁移与优化"
+                "provider": model_type,
+            },
+            "🚀 开始迁移与优化",
         )
 
     # 执行四步走策略
@@ -68,6 +69,7 @@ def run_trimlu_optimization(
     except Exception as e:
         print(f"❌ 运行失败: {e}")
         import traceback
+
         if verbose:
             traceback.print_exc()
         return None
@@ -75,27 +77,51 @@ def run_trimlu_optimization(
     print(f"\n✅ 迁移优化完成! 结果保存在: {output_dir}")
     return output_dir
 
+
 def main():
-    parser = argparse.ArgumentParser(description="TriMLU: 寒武纪 MLU Triton 算子自动迁移与优化工具")
-    
+    parser = argparse.ArgumentParser(
+        description="TriMLU: 寒武纪 MLU Triton 算子自动迁移与优化工具"
+    )
+
     # 核心参数
-    parser.add_argument("kernel_file", type=str, help="待处理的原始 Triton Kernel 文件路径 (.py)")
-    
+    parser.add_argument(
+        "kernel_file", type=str, help="待处理的原始 Triton Kernel 文件路径 (.py)"
+    )
+
     # 模型配置
-    parser.add_argument("--model-type", type=str, default="openai", choices=["openai", "claude", "gemini"],
-                        help="使用的模型提供商 (默认: openai)")
-    parser.add_argument("--model-id", type=str, default="gpt-4", 
-                        help="具体模型 ID (如 gpt-4, claude-3-5-sonnet, gemini-1.5-pro)")
-    
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="openai",
+        choices=["openai", "claude", "gemini"],
+        help="使用的模型提供商 (默认: openai)",
+    )
+    parser.add_argument(
+        "--model-id",
+        type=str,
+        default="gpt-4",
+        help="具体模型 ID (如 gpt-4, claude-3-5-sonnet, gemini-1.5-pro)",
+    )
+
     # 运行配置
-    parser.add_argument("--output-dir", type=str, default="outputs", help="结果输出目录")
-    parser.add_argument("--iters", type=int, default=3, help="最大尝试重试/优化迭代次数")
-    parser.add_argument("--target", type=str, default="MLU590", help="目标硬件平台 (默认: MLU590)")
-    
+    parser.add_argument(
+        "--output-dir", type=str, default="outputs", help="结果输出目录"
+    )
+    parser.add_argument(
+        "--iters", type=int, default=3, help="最大尝试重试/优化迭代次数"
+    )
+    parser.add_argument(
+        "--target", type=str, default="MLU590", help="目标硬件平台 (默认: MLU590)"
+    )
+
     # 认证配置 (通常推荐通过环境变量，但也支持命令行传入)
-    parser.add_argument("--api-key", type=str, default=None, help="API Key (若不提供则从环境变量读取)")
-    parser.add_argument("--endpoint", type=str, default=None, help="Azure Endpoint (仅 OpenAI 模式需要)")
-    
+    parser.add_argument(
+        "--api-key", type=str, default=None, help="API Key (若不提供则从环境变量读取)"
+    )
+    parser.add_argument(
+        "--endpoint", type=str, default=None, help="Azure Endpoint (仅 OpenAI 模式需要)"
+    )
+
     # 其他
     parser.add_argument("--quiet", action="store_true", help="关闭详细日志输出")
 
@@ -116,8 +142,9 @@ def main():
         target_mlu=args.target,
         api_key=args.api_key,
         azure_endpoint=args.endpoint,
-        verbose=not args.quiet
+        verbose=not args.quiet,
     )
+
 
 if __name__ == "__main__":
     main()
