@@ -87,19 +87,19 @@ def naive_add(x_ptr, y_ptr, n_elements):
 
     def test_pipeline_incremental_update(self):
         """验证代码是否在流水线中被逐步替换"""
-        
+
         # 1. 模拟三步返回的不同结果
         self.mock_model.generate.side_effect = [
             {"code": "#### START KERNEL\n# Step_Migration\n#### END KERNEL"},
             {"code": "#### START KERNEL\n# Step_Optimization\n#### END KERNEL"},
-            {"code": "#### START KERNEL\n# Step_Tuning\n#### END KERNEL"}
+            {"code": "#### START KERNEL\n# Step_Tuning\n#### END KERNEL"},
         ]
 
         # 2. 实例化 Orchestrator
         agent = TriMLUOrchestrator(
             model=self.mock_model,
             kernel_file=self.test_kernel,
-            output_dir=self.output_dir
+            output_dir=self.output_dir,
         )
 
         # 执行
@@ -107,14 +107,14 @@ def naive_add(x_ptr, y_ptr, n_elements):
 
         # 3. 🚀 修复点：显式定义 output_file 路径
         output_file = os.path.join(self.output_dir, os.path.basename(self.test_kernel))
-        
+
         with open(output_file, "r") as f:
             content = f.read()
             # 验证原始代码是否消失了
             self.assertNotIn("naive_add", content)
             # 验证流水线是否走到了最后一步（Tuning）
             self.assertIn("# Step_Tuning", content)
-            
+
         print("\n✅ 增量更新测试通过！")
 
 
