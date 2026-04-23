@@ -7,6 +7,7 @@ import numpy as np
 import os, sys, random
 import pytest
 
+#### START KERNEL
 configs = [
     triton.Config({"BLOCK_M": BM, "BLOCK_N": BN}, num_stages=s, num_warps=w)
     for BM in [128]

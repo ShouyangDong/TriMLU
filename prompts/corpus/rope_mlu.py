@@ -16,7 +16,7 @@ TOTAL_CORE_NUM = TOTAL_CLUSTER_NUM * _devprob.get("core_num_per_cluster")
 # Processes input shape (bs, seqlen, head_num, head_size).
 # cos/sin table: (total_tokens, head_size), indexed via token_offsets.
 # ---------------------------------------------------------------------------
-
+#### START KERNEL
 configs = [
     triton.Config({"BLOCK_M": BM}, num_stages=s, num_warps=w)
     for BM in [512]
@@ -207,7 +207,7 @@ def rope_impl(
 
     # Restore original shape (total_len, head, dim)
     return out_4d.squeeze(0)
-
+#### END KERNEL
 
 # ---------------------------------------------------------------------------
 # Public autograd Function — interface unchanged from original rope.py
