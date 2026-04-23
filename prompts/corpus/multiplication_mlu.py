@@ -162,6 +162,9 @@ import triton.language as tl
 #       meta-parameters (e.g., `BLOCK_SIZE_M`) and compilation options (e.g., `num_warps`) to try
 #   - An auto-tuning *key* whose change in values will trigger evaluation of all the
 #       provided configs
+
+#### START KERNEL
+
 @triton.autotune(
     configs=[
         triton.Config(
@@ -551,7 +554,7 @@ def matmul_kernel(
 def leaky_relu(x):
     x = x + 1
     return tl.where(x >= 0, x, 0.01 * x)
-
+#### END KERNEL
 
 # %%
 # We can now create a convenience wrapper function that only takes two input tensors,
