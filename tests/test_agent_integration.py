@@ -18,8 +18,7 @@ class TestAgentIntegration(unittest.TestCase):
         # 2. 创建一个带标记的测试 GPU Kernel 文件
         self.test_kernel = os.path.join(self.test_dir, "test_kernel.py")
         with open(self.test_kernel, "w") as f:
-            f.write(
-                """
+            f.write("""
 import triton
 import triton.language as tl
 
@@ -29,8 +28,7 @@ def naive_add(x_ptr, y_ptr, n_elements):
     idx = tl.program_id(0)
     tl.store(y_ptr + idx, tl.load(x_ptr + idx))
 #### END KERNEL
-"""
-            )
+""")
 
         # 3. 模拟一个优化过的 Example 存入语料库
         with open(os.path.join(self.corpus_dir, "ref_add.py"), "w") as f:

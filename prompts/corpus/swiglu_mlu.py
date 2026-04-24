@@ -8,7 +8,6 @@ import triton.language as tl
 from triton.language.extra.mlu import libdevice
 import triton.backends.mlu.driver as driver
 
-
 _devprob = driver.BangUtils().get_device_properties(torch.mlu.current_device())
 
 NUM_CLUSTER = _devprob.get("cluster_num")
