@@ -12,7 +12,7 @@ class OpenAIModel:
 
         self.model_id = model_id
         self.client = AzureOpenAI(
-            api_version="2024-12-01-preview",
+            api_version="2025-12-01-preview",
             api_key=api_key,
             azure_endpoint=azure_endpoint,
         )

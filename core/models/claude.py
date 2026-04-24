@@ -4,46 +4,51 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 
 class ClaudeModel:
-    """Standard Anthropic API (Claude 3.5 Sonnet / 3 Opus)"""
+    """Standard Claude API (api.anthropic.com)"""
 
-    def __init__(self, model_id="claude-3-5-sonnet-20240620", api_key=None):
-        assert api_key is not None, "No Anthropic API key is provided."
-
-        # 初始化 Anthropic 客户端
+    def __init__(self, model_id="claude-opus-4-5-20251101", api_key=None):
+        assert api_key is not None, "No API key provided."
         self.model_id = model_id
-        self.client = anthropic.Anthropic(api_key=api_key)
+        print("model: ", self.model_id)
+        print("api_key: ", api_key)
+        client_kwargs = {"api_key": api_key}
+        client_kwargs["base_url"] = "https://ace2.ezclaude.com"
+        self.client = anthropic.Anthropic(**client_kwargs)
 
     @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(5))
     def generate(
         self,
         messages: List,
         temperature=0,
-        max_tokens=5000,
+        presence_penalty=0,
+        frequency_penalty=0,
+        max_tokens=16000,
     ) -> str:
-        """
-        Claude 的消息格式与 OpenAI 兼容，但 system prompt 通常作为顶级参数提取
-        """
+        max_tokens = min(max_tokens, 16000)
 
-        # 分离 System Message (Claude 的 API 习惯将 system 放在顶级参数中)
-        system_content = ""
-        filtered_messages = []
-        for msg in messages:
-            if msg["role"] == "system":
-                system_content = msg["content"]
-            else:
-                filtered_messages.append(msg)
+        api_kwargs = {
+            "model": self.model_id,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
 
-        # 调用 Claude API
-        response = self.client.messages.create(
-            model=self.model_id,
-            system=system_content,
-            messages=filtered_messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        try:
+            response = self.client.messages.create(**api_kwargs)
+        except anthropic.APIStatusError as e:
+            raise ValueError(f"Anthropic API error: {e.status_code} - {e.message}")
+        except anthropic.APIConnectionError as e:
+            raise ValueError(f"API connection error: {str(e)}")
+        except anthropic.AuthenticationError as e:
+            raise ValueError(f"Authentication error - check your API key: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"API call failed: {type(e).__name__}: {str(e)}")
 
-        if not response or not response.content:
-            raise ValueError("No response content returned from Claude API.")
+        if (
+            not response
+            or not hasattr(response, "content")
+            or len(response.content) == 0
+        ):
+            raise ValueError("No response content returned from the API.")
 
-        # Claude 返回的是内容块列表，通常取第一个文本块
         return response.content[0].text

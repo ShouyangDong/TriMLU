@@ -39,8 +39,7 @@ class TestTriMLUOrchestrator(unittest.TestCase):
         self.temp_kernel_file = tempfile.NamedTemporaryFile(
             mode="w", delete=False, suffix=".py"
         )
-        self.temp_kernel_file.write(
-            """
+        self.temp_kernel_file.write("""
 # Sample kernel file
 def existing_function():
     return "original"
@@ -52,8 +51,7 @@ def sample_kernel():
 
 def another_function():
     return "end"
-"""
-        )
+""")
         self.temp_kernel_file.close()
 
         # 创建输出目录
@@ -262,8 +260,7 @@ def updated_kernel():
         multi_kernel_file = tempfile.NamedTemporaryFile(
             mode="w", delete=False, suffix=".py"
         )
-        multi_kernel_file.write(
-            """
+        multi_kernel_file.write("""
 #### START KERNEL
 def kernel_1():
     pass
@@ -278,8 +275,7 @@ def kernel_2():
 def kernel_3():
     pass
 #### END KERNEL
-"""
-        )
+""")
         multi_kernel_file.close()
 
         try:
@@ -303,12 +299,10 @@ def kernel_3():
         empty_kernel_file = tempfile.NamedTemporaryFile(
             mode="w", delete=False, suffix=".py"
         )
-        empty_kernel_file.write(
-            """
+        empty_kernel_file.write("""
 #### START KERNEL
 #### END KERNEL
-"""
-        )
+""")
         empty_kernel_file.close()
 
         try:
