@@ -1,52 +1,11 @@
 import torch
-
 import triton
 import triton.language as tl
 from triton.runtime import driver
 
+torch.manual_seed(1234)
 
-def naive_softmax(x):
-    """Compute row-wise softmax of X using native pytorch
-
-    We subtract the maximum element in order to avoid overflows. Softmax is invariant to
-    this shift.
-    """
-    # read  MN elements ; write M  elements
-    x_max = x.max(dim=1)[0]
-    # read MN + M elements ; write MN elements
-    z = x - x_max[:, None]
-    # read  MN elements ; write MN elements
-    numerator = torch.exp(z)
-    # read  MN elements ; write M  elements
-    denominator = numerator.sum(dim=1)
-    # read MN + M elements ; write MN elements
-    ret = numerator / denominator[:, None]
-    # in total: read 5MN + 2M elements ; wrote 3MN + 2M elements
-    return ret
-
-
-# %%
-# When implemented naively in PyTorch, computing :code:`y = naive_softmax(x)` for :math:`x \in R^{M \times N}`
-# requires reading :math:`5MN + 2M` elements from DRAM and writing back :math:`3MN + 2M` elements.
-# This is obviously wasteful; we'd prefer to have a custom "fused" kernel that only reads
-# X once and does all the necessary computations on-chip.
-# Doing so would require reading and writing back only :math:`MN` bytes, so we could
-# expect a theoretical speed-up of ~4x (i.e., :math:`(8MN + 4M) / 2MN`).
-# The `torch.jit.script` flags aims to perform this kind of "kernel fusion" automatically
-# but, as we will see later, it is still far from ideal.
-
-# %%
-# Compute Kernel
-# --------------
-#
-# Our softmax kernel works as follows: each program loads a set of rows of the input matrix X strided by number of programs,
-# normalizes it and writes back the result to the output Y.
-#
-# Note that one important limitation of Triton is that each block must have a
-# power-of-two number of elements, so we need to internally "pad" each row and guard the
-# memory operations properly if we want to handle any possible input shapes:
-
-
+#### START KERNEL
 @triton.jit
 def softmax_kernel(
     output_ptr,
@@ -58,100 +17,119 @@ def softmax_kernel(
     BLOCK_SIZE: tl.constexpr,
     num_stages: tl.constexpr,
 ):
-    # starting row of the program
+    # 程序启动的起始行
     row_start = tl.program_id(0)
     row_step = tl.num_programs(0)
+    
+    # 采用持久化循环 (Persistent Kernel) 模式处理多行
     for row_idx in tl.range(row_start, n_rows, row_step, num_stages=num_stages):
-        # The stride represents how much we need to increase the pointer to advance 1 row
         row_start_ptr = input_ptr + row_idx * input_row_stride
-        # The block size is the next power of two greater than n_cols, so we can fit each
-        # row in a single block
         col_offsets = tl.arange(0, BLOCK_SIZE)
         input_ptrs = row_start_ptr + col_offsets
-        # Load the row into SRAM, using a mask since BLOCK_SIZE may be > than n_cols
+        
         mask = col_offsets < n_cols
+        # 加载行数据，Mask 外补负无穷以确保 max 正确
         row = tl.load(input_ptrs, mask=mask, other=-float("inf"))
-        # Subtract maximum for numerical stability
+        
+        # 减去最大值以保证数值稳定性
         row_minus_max = row - tl.max(row, axis=0)
-        # Note that exponentiation in Triton is fast but approximate (i.e., think __expf in CUDA)
         numerator = tl.exp(row_minus_max)
         denominator = tl.sum(numerator, axis=0)
         softmax_output = numerator / denominator
-        # Write back output to DRAM
+        
+        # 写回 DRAM
         output_row_start_ptr = output_ptr + row_idx * output_row_stride
         output_ptrs = output_row_start_ptr + col_offsets
         tl.store(output_ptrs, softmax_output, mask=mask)
 
-
-# %%
-# We can create a helper function that enqueues the kernel and its (meta-)arguments for any given input tensor.
-
-device = torch.mlu.current_device()
-properties = driver.active.utils.get_device_properties(device)
-# NUM_SM = properties["multiprocessor_count"]
-NUM_SM = properties["cluster_num"] * properties["core_num_per_cluster"]
-# NUM_REGS = properties["max_num_regs"]
-# SIZE_SMEM = properties["max_shared_mem"]
-# WARP_SIZE = properties["warpSize"]
-NUM_REGS = 1
-SIZE_SMEM = 1
-WARP_SIZE = 1
-target = triton.runtime.driver.active.get_current_target()
-kernels = {}
-
-
-def softmax(x):
+def softmax_triton_wrapper(x):
     n_rows, n_cols = x.shape
-
-    # The block size of each loop iteration is the smallest power of two greater than the number of columns in `x`
     BLOCK_SIZE = triton.next_power_of_2(n_cols)
-
-    # Another trick we can use is to ask the compiler to use more threads per row by
-    # increasing the number of warps (`num_warps`) over which each row is distributed.
-    # You will see in the next tutorial how to auto-tune this value in a more natural
-    # way so you don't have to come up with manual heuristics yourself.
+    
+    # MLU 硬件属性获取
+    device = torch.mlu.current_device()
+    properties = driver.active.utils.get_device_properties(device)
+    NUM_SM = properties["cluster_num"] * properties["core_num_per_cluster"]
+    
+    # 启发式参数设置
     num_warps = 8
-
-    # Number of software pipelining stages.
-    num_stages = 4 if SIZE_SMEM > 200000 else 2
-
-    # Allocate output
+    num_stages = 2 # MLU 上通常设为 2
+    
     y = torch.empty_like(x)
+    # 持久化线程组：取 SM 数量与行数的最小值
     num_programs = min(NUM_SM, n_rows)
-    kernel = softmax_kernel.warmup(
-        y,
-        x,
-        x.stride(0),
-        y.stride(0),
-        n_rows,
-        n_cols,
+    
+    softmax_kernel[(num_programs, 1, 1)](
+        y, x, x.stride(0), y.stride(0), n_rows, n_cols,
         BLOCK_SIZE=BLOCK_SIZE,
         num_stages=num_stages,
         num_warps=num_warps,
-        grid=(1,),
-    )
-    kernel._init_handles()
-
-    # Create a number of persistent programs.
-    kernel[(num_programs, 1, 1)](
-        y,
-        x,
-        x.stride(0),
-        y.stride(0),
-        n_rows,
-        n_cols,
     )
     return y
+#### END KERNEL
 
+# =============================================================================
+# 精度测试与性能基准
+# =============================================================================
 
-##################################################################################################################################################
-def test_softmax_triton():
-    results = {}
-    torch.manual_seed(0)
-    x = torch.randn(1823, 781, device="mlu")
-    y_triton = softmax(x)
-    results["test_case_1"] = y_triton
-    return results
+def test_softmax_correctness():
+    print("🧪 正在进行 Softmax 精度校验...")
+    configs = [
+        (128, 512),
+        (1823, 781),
+        (1024, 4096),
+    ]
+    for M, N in configs:
+        x = torch.randn((M, N), device="mlu", dtype=torch.float32)
+        
+        # Triton 结果
+        triton_out = softmax_triton_wrapper(x)
+        # Torch 结果
+        torch_out = torch.softmax(x, dim=1)
+        
+        # 比较精度
+        is_correct = torch.allclose(triton_out, torch_out, atol=1e-5)
+        status = "✅ 通过" if is_correct else "❌ 失败"
+        print(f"  - Shape {M}x{N}: {status}")
+        if not is_correct:
+            print(f"    Max Diff: {(triton_out - torch_out).abs().max()}")
 
+def benchmark_softmax():
+    print("\n🚀 正在进行性能基准测试 (Performance Benchmark)...")
+    
+    @triton.testing.perf_report(
+        triton.testing.Benchmark(
+            x_names=['N'],
+            x_vals=[2**i for i in range(8, 15)], 
+            line_arg='provider', 
+            line_vals=['triton', 'torch'], 
+            line_names=['Triton', 'Torch'], 
+            styles=[('blue', '-'), ('green', '-')],
+            ylabel='GB/s', 
+            plot_name='softmax-performance',
+            args={'M': 1024}, 
+        )
+    )
+    def benchmark(N, M, provider):
+        x = torch.randn((M, N), device='mlu', dtype=torch.float32)
+        
+        if provider == 'torch':
+            ms = triton.testing.do_bench(lambda: torch.softmax(x, dim=1))
+        if provider == 'triton':
+            ms = triton.testing.do_bench(lambda: softmax_triton_wrapper(x))
+        
+        # 带宽计算: 读取 x (M*N*4) + 写入 y (M*N*4)
+        gbps = lambda ms: (2 * M * N * 4) * 1e-9 / (ms * 1e-3)
+        return gbps(ms)
 
-result_gold = test_softmax_triton()
+    benchmark.run(show_plots=False, print_data=True)
+
+if __name__ == "__main__":
+    # 1. 精度校验
+    test_softmax_correctness()
+    
+    # 2. 性能测试
+    try:
+        benchmark_softmax()
+    except Exception as e:
+        print(f"⚠️ 性能测试跳过或出错: {e}")
