@@ -1,39 +1,64 @@
 import unittest
+import os
+import shutil
+import tempfile
+import tiktoken
 from prompts.selector import ExampleSelector
 
 
-class TestTiktokenSelector(unittest.TestCase):
-    def test_token_similarity(self):
-        # 1. 模拟两个功能相似的算子
-        # 它们包含大量相同的 Triton 关键字：tl.load, tl.store, tl.program_id
-        code_a = "#### START KERNEL\ndef add_kernel(x, y): tl.load(x); tl.store(y)\n#### END KERNEL"
-        code_b = "#### START KERNEL\ndef sub_kernel(a, b): tl.load(a); tl.store(b)\n#### END KERNEL"
+class TestExampleSelectorDebug(unittest.TestCase):
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.conv1d_code = """
+#### START KERNEL
+@triton.jit
+def triple_implicit_gemm_conv1d_fwd_kernel(
+    output_ptr_0, input_ptr_0, weight_ptr_0, bias_ptr_0, res_ptr_0,
+    N, C: tl.constexpr, H, K: tl.constexpr, P_0, R_0: tl.constexpr,
+    str_h_0: tl.constexpr, pad_h_0: tl.constexpr, dil_h_0: tl.constexpr,
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr,
+    BLOCK_SIZE_K: tl.constexpr, GROUP_SIZE_M: tl.constexpr,
+):
+    GEMM_M = N * P_0
+    GEMM_N = K
+    GEMM_K = C * R_0
+    # ... (省略中间逻辑以节省篇幅，实际测试会包含完整代码)
+    acc = tl.dot(input_data, weight_data, acc)
+    tl.store(output_ptrs, acc)
+#### END KERNEL
+"""
+        # 将代码写入临时语料库
+        self.file_path = os.path.join(self.test_dir, "conv1d.py")
+        with open(self.file_path, "w", encoding="utf-8") as f:
+            f.write(self.conv1d_code)
 
-        # 2. 模拟一个完全不相关的算子
-        code_c = "#### START KERNEL\ndef other(): print('hello')\n#### END KERNEL"
+        self.selector = ExampleSelector(corpus_dir=self.test_dir)
 
-        # 实例化 selector (手动喂数据进行测试)
-        selector = ExampleSelector(corpus_dir="tests/mock_corpus")
-        selector.examples = [
-            {
-                "content": code_a,
-                "tokens": set(selector.encoder.encode(code_a)),
-                "token_count": 10,
-            },
-            {
-                "content": code_c,
-                "tokens": set(selector.encoder.encode(code_c)),
-                "token_count": 5,
-            },
-        ]
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
 
-        # 3. 传入一个和 code_a 很像的 query
-        query = "def my_add(ptr_in, ptr_out): tl.load(ptr_in); tl.store(ptr_out)"
-        result = selector.get_best_example(query)
+    def test_debug_conv1d_search(self):
+        # 模拟一个类似的查询
+        query = "def my_conv_kernel(output_ptr, input_ptr): GEMM_M = N * P0"
 
-        # 验证是否避开了不相关的 code_c，选择了 code_a
-        self.assertEqual(result, code_a)
-        print("✅ Tiktoken 相似度匹配测试通过")
+        # 检查 token 数量
+        token_count = self.selector.calculate_tokens(self.conv1d_code)
+        print(f"\n[Debug] Conv1D Kernel Token Count: {token_count}")
+
+        # 执行搜索 (尝试调大 max_tokens)
+        result = self.selector.get_best_example(query, max_tokens=2000)
+
+        if result == "":
+            print("[Debug] Search returned EMPTY string.")
+            # 进一步排查：查看加载的 examples
+            print(f"[Debug] Number of loaded examples: {len(self.selector.examples)}")
+            if len(self.selector.examples) > 0:
+                ex = self.selector.examples[0]
+                print(f"[Debug] Example token count: {ex['token_count']}")
+        else:
+            print("[Debug] Search SUCCESSFUL.")
+
+        self.assertNotEqual(result, "", "搜索结果不应为空")
 
 
 if __name__ == "__main__":

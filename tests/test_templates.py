@@ -22,7 +22,7 @@ class TestPromptTemplates(unittest.TestCase):
         """Test if migrate prompt contains input code and instructions"""
         prompt_list = get_migrate_prompt(self.mock_code)
         content = self._get_content(prompt_list)
-        
+
         self.assertIn(self.mock_code, content)
         self.assertIn("NO JSON", content)
         print("✅ PASSED: Migrate Prompt check")
@@ -31,7 +31,7 @@ class TestPromptTemplates(unittest.TestCase):
         """Test if debug prompt correctly injects error logs"""
         prompt_list = get_debug_prompt(self.mock_code, self.mock_error)
         content = self._get_content(prompt_list)
-        
+
         self.assertIn(self.mock_error, content)
         self.assertIn("fix the code", content.lower())
         print("✅ PASSED: Debug Prompt check")
@@ -40,7 +40,7 @@ class TestPromptTemplates(unittest.TestCase):
         """Test if optimize prompt shows reference section when example is provided"""
         prompt_list = get_optimize_prompt(self.mock_code, self.mock_example)
         content = self._get_content(prompt_list)
-        
+
         self.assertIn("### REFERENCE PATTERN", content)
         self.assertIn(self.mock_example, content)
         print("✅ PASSED: Optimize Prompt (With Example) check")
@@ -49,7 +49,7 @@ class TestPromptTemplates(unittest.TestCase):
         """Test if optimize prompt hides reference section when example is empty"""
         prompt_list = get_optimize_prompt(self.mock_code, example_code="")
         content = self._get_content(prompt_list)
-        
+
         self.assertNotIn("### REFERENCE PATTERN", content)
         self.assertIn(self.mock_code, content)
         print("✅ PASSED: Optimize Prompt (No Example) check")
@@ -58,7 +58,7 @@ class TestPromptTemplates(unittest.TestCase):
         """Test if tune prompt includes specific parameter ranges"""
         prompt_list = get_tune_prompt(self.mock_code)
         content = self._get_content(prompt_list)
-        
+
         self.assertIn("num_stages", content)
         self.assertIn("num_warps", content)
         self.assertIn("@triton.autotune", content)

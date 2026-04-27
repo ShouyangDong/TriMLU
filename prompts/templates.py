@@ -11,9 +11,11 @@ MLU_HARDWARE_CONSTRAINTS = """
 - **Grid Match**: tl.program_id axis must strictly match the launch grid dimensions.
 """
 
+
 # 封装一个辅助函数，统一转换为 API 所需列表格式
 def format_as_user_msg(prompt_text):
     return [{"role": "user", "content": prompt_text.strip()}]
+
 
 # 1. 迁移阶段
 def get_migrate_prompt(current_code):
