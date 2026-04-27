@@ -6,13 +6,13 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential
 class ClaudeModel:
     """Standard Claude API (api.anthropic.com)"""
 
-    def __init__(self, model_id="claude-opus-4-5-20251101", api_key=None):
+    def __init__(self, model_id="claude-sonnet-4-5-20250929", api_key=None):
         assert api_key is not None, "No API key provided."
         self.model_id = model_id
         print("model: ", self.model_id)
         print("api_key: ", api_key)
         client_kwargs = {"api_key": api_key}
-        client_kwargs["base_url"] = "https://ace2.ezclaude.com"
+        client_kwargs["base_url"] = "https://api.ezclaude.com"
         self.client = anthropic.Anthropic(**client_kwargs)
 
     @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(5))
@@ -25,7 +25,6 @@ class ClaudeModel:
         max_tokens=16000,
     ) -> str:
         max_tokens = min(max_tokens, 16000)
-
         api_kwargs = {
             "model": self.model_id,
             "messages": messages,
@@ -50,5 +49,4 @@ class ClaudeModel:
             or len(response.content) == 0
         ):
             raise ValueError("No response content returned from the API.")
-
         return response.content[0].text

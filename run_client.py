@@ -1,6 +1,6 @@
 from core.orchestrator import TriMLUOrchestrator
 from core.models import OpenAIModel, ClaudeModel, GeminiModel
-from utils import print_header, print_config
+from core.utils import print_header, print_config
 import os
 import argparse
 import sys
@@ -9,7 +9,7 @@ import sys
 def run_trimlu_optimization(
     kernel_file: str,
     model_type: str = "openai",  # 默认调用 openai，可选: openai, claude, gemini
-    model_id: str = "gpt-4",
+    model_id: str = None,
     output_dir: str = "outputs",
     iteration_num: int = 3,
     target_mlu: str = "MLU590",
@@ -31,6 +31,7 @@ def run_trimlu_optimization(
             azure_endpoint=final_azure_endpoint,
         )
     elif model_type == "claude":
+        model_id = model_id if (model_id and model_id.startswith("claude")) else "claude-sonnet-4-5-20250929"
         final_api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         model = ClaudeModel(
             model_id=model_id,
@@ -100,7 +101,7 @@ def main():
         "--model-id",
         type=str,
         default="gpt-4",
-        help="具体模型 ID (如 gpt-4, claude-3-5-sonnet, gemini-1.5-pro)",
+        help="具体模型 ID (如 gpt-4, claude-sonnet-4-5-20250929, gemini-1.5-pro)",
     )
 
     # 运行配置

@@ -50,10 +50,10 @@ python3 run_clinet.py my_kernel.py
 ### 切换模型后端 (Claude 或 Gemini)
 ```bash
 # 使用 Claude 3.5 Sonnet
-python3 run_clinet.py my_kernel.py --model-type claude --model-id claude-3-5-sonnet-20240620
+python3 run_client.py my_kernel.py --model-type claude --model-id claude-3-5-sonnet-20240620
 
 # 使用 Gemini 1.5 Pro
-python3 run_clinet.py my_kernel.py --model-type gemini --model-id gemini-1.5-pro
+python3 run_client.py my_kernel.py --model-type gemini --model-id gemini-1.5-pro
 ```
 
 ### 常用可选参数
