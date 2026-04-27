@@ -14,45 +14,55 @@ class TestPromptTemplates(unittest.TestCase):
         self.mock_error = "NRAM overflow at line 10"
         self.mock_example = "def optimized_example(): # use double buffer"
 
+    def _get_content(self, prompt_list):
+        """Helper to extract content string from the message list format"""
+        return prompt_list[0]["content"]
+
     def test_migrate_prompt_contains_code(self):
-        """测试迁移 Prompt 是否包含输入的原始代码"""
-        prompt = get_migrate_prompt(self.mock_code)
-        self.assertIn(self.mock_code, prompt)
-        # 修正：现在要求 NO JSON
-        self.assertIn("NO JSON", prompt)
-        print("✅ Migrate Prompt 测试通过")
+        """Test if migrate prompt contains input code and instructions"""
+        prompt_list = get_migrate_prompt(self.mock_code)
+        content = self._get_content(prompt_list)
+        
+        self.assertIn(self.mock_code, content)
+        self.assertIn("NO JSON", content)
+        print("✅ PASSED: Migrate Prompt check")
 
     def test_debug_prompt_contains_error(self):
-        """测试 Debug Prompt 是否正确注入了错误日志"""
-        prompt = get_debug_prompt(self.mock_code, self.mock_error)
-        self.assertIn(self.mock_error, prompt)
-        # 修正：去掉了 error_analysis 字段
-        self.assertIn("fix the code", prompt.lower())
-        print("✅ Debug Prompt 测试通过")
+        """Test if debug prompt correctly injects error logs"""
+        prompt_list = get_debug_prompt(self.mock_code, self.mock_error)
+        content = self._get_content(prompt_list)
+        
+        self.assertIn(self.mock_error, content)
+        self.assertIn("fix the code", content.lower())
+        print("✅ PASSED: Debug Prompt check")
 
     def test_optimize_prompt_with_example(self):
-        """测试优化 Prompt 在有 Example 时是否正确显示参考段落"""
-        prompt = get_optimize_prompt(self.mock_code, self.mock_example)
-        # 修正：匹配最新的标题 '### REFERENCE PATTERN'
-        self.assertIn("### REFERENCE PATTERN", prompt)
-        self.assertIn(self.mock_example, prompt)
-        print("✅ Optimize Prompt (With Example) 测试通过")
+        """Test if optimize prompt shows reference section when example is provided"""
+        prompt_list = get_optimize_prompt(self.mock_code, self.mock_example)
+        content = self._get_content(prompt_list)
+        
+        self.assertIn("### REFERENCE PATTERN", content)
+        self.assertIn(self.mock_example, content)
+        print("✅ PASSED: Optimize Prompt (With Example) check")
 
     def test_optimize_prompt_without_example(self):
-        """测试优化 Prompt 在没有 Example 时是否隐藏了参考段落"""
-        prompt = get_optimize_prompt(self.mock_code, example_code="")
-        self.assertNotIn("### REFERENCE PATTERN", prompt)
-        self.assertIn(self.mock_code, prompt)
-        print("✅ Optimize Prompt (No Example) 测试通过")
+        """Test if optimize prompt hides reference section when example is empty"""
+        prompt_list = get_optimize_prompt(self.mock_code, example_code="")
+        content = self._get_content(prompt_list)
+        
+        self.assertNotIn("### REFERENCE PATTERN", content)
+        self.assertIn(self.mock_code, content)
+        print("✅ PASSED: Optimize Prompt (No Example) check")
 
     def test_tune_prompt_format(self):
-        """测试调优 Prompt 是否包含指定的参数范围"""
-        prompt = get_tune_prompt(self.mock_code)
-        # 修正：匹配具体的调优参数说明
-        self.assertIn("num_stages", prompt)
-        self.assertIn("num_warps", prompt)
-        self.assertIn("@triton.autotune", prompt)
-        print("✅ Tune Prompt 测试通过")
+        """Test if tune prompt includes specific parameter ranges"""
+        prompt_list = get_tune_prompt(self.mock_code)
+        content = self._get_content(prompt_list)
+        
+        self.assertIn("num_stages", content)
+        self.assertIn("num_warps", content)
+        self.assertIn("@triton.autotune", content)
+        print("✅ PASSED: Tune Prompt check")
 
 
 if __name__ == "__main__":

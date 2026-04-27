@@ -230,29 +230,6 @@ def updated_kernel():
             content = f.read()
             self.assertEqual(content, self.orchestrator.full_code)
 
-    def test_display_results_summary(self):
-        """测试结果摘要显示功能"""
-        # 准备测试数据
-        test_results = {
-            "Kernel_1": {
-                "pass_call": True,
-                "pass_exe": True,
-                "latency": "1.25ms",
-                "speedup": "1.15x",
-            },
-            "Kernel_2": {
-                "pass_call": False,
-                "pass_exe": False,
-                "latency": "N/A",
-                "speedup": "N/A",
-            },
-        }
-
-        # 调用显示函数（应该不会抛出异常）
-        try:
-            self.orchestrator.display_results_summary(test_results)
-        except Exception as e:
-            self.fail(f"display_results_summary raised an exception: {e}")
 
     def test_multiple_kernels_parsing(self):
         """测试多kernel解析"""

@@ -1,20 +1,23 @@
 import json
 
 # ==============================================================================
-# MLU 核心约束：通过显式列表强化 LLM 的硬件意识
+# MLU 核心约束
 # ==============================================================================
 MLU_HARDWARE_CONSTRAINTS = """
 - **NRAM Aware**: Keep BLOCK_SIZE power-of-two (64, 128, 256).
 - **Type Promotion**: Use `.to(tl.float32)` for accumulations. Inputs for `tl.dot` must be float16/bfloat16.
 - **Strict API**: NO `tl.pointer`. Use `tl.math` only. 
-- **Math Fallback**: If `tl.math.tanh` is missing, use `(tl.math.exp(2*x)-1)/(tl.math.exp(2*x)+1)`.
-- **Grid Match**: `tl.program_id` axis must strictly match the launch grid dimensions.
+- **Math Fallback**: If `tl.math.tanh` is missing, use (tl.math.exp(2*x)-1)/(tl.math.exp(2*x)+1).
+- **Grid Match**: tl.program_id axis must strictly match the launch grid dimensions.
 """
 
+# 封装一个辅助函数，统一转换为 API 所需列表格式
+def format_as_user_msg(prompt_text):
+    return [{"role": "user", "content": prompt_text.strip()}]
 
 # 1. 迁移阶段
 def get_migrate_prompt(current_code):
-    return f"""
+    prompt = f"""
 You are an expert Triton-MLU Compiler Engineer. 
 Migrate the following GPU Triton code to Cambricon MLU590.
 
@@ -28,11 +31,12 @@ Migrate the following GPU Triton code to Cambricon MLU590.
 Directly provide the migrated Python code within a ```python ... ``` code block. 
 NO explanations, NO JSON, and NO text before or after the code block.
 """
+    return format_as_user_msg(prompt)
 
 
 # 2. 调试阶段
 def get_debug_prompt(current_code, error_log):
-    return f"""
+    prompt = f"""
 You are an MLU Kernel Debugger. Analyze the error and fix the code.
 
 ### ERROR LOG:
@@ -48,13 +52,14 @@ You are an MLU Kernel Debugger. Analyze the error and fix the code.
 Directly provide the fixed Python code within a ```python ... ``` code block. 
 NO explanations, NO JSON, and NO text before or after the code block.
 """
+    return format_as_user_msg(prompt)
 
 
 # 3. 优化阶段
 def get_optimize_prompt(current_code, example_code=""):
     example_section = f"### REFERENCE PATTERN:\n{example_code}" if example_code else ""
 
-    return f"""
+    prompt = f"""
 You are a Cambricon MLU Performance Engineer. 
 Optimize the following kernel for MLU590 using algorithmic fusion and memory coalescing.
 
@@ -72,11 +77,12 @@ Optimize the following kernel for MLU590 using algorithmic fusion and memory coa
 Directly provide the optimized Python code within a ```python ... ``` code block. 
 NO explanations, NO JSON, and NO text before or after the code block.
 """
+    return format_as_user_msg(prompt)
 
 
 # 4. 调优阶段
 def get_tune_prompt(current_code):
-    return f"""
+    prompt = f"""
 You are a Hardware Tuning Expert. 
 Inject `@triton.autotune` into the following kernel.
 
@@ -92,3 +98,4 @@ Inject `@triton.autotune` into the following kernel.
 Directly provide the full Python code (including decorator and configs) within a ```python ... ``` code block. 
 NO explanations, NO JSON, and NO text before or after the code block.
 """
+    return format_as_user_msg(prompt)
