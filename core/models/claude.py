@@ -31,7 +31,6 @@ class ClaudeModel:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-
         try:
             response = self.client.messages.create(**api_kwargs)
         except anthropic.APIStatusError as e:
