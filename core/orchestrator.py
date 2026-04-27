@@ -34,13 +34,14 @@ def setup_logger(output_dir):
 
 
 class TriMLUOrchestrator:
-    def __init__(self, model, kernel_file, output_dir):
+    def __init__(self, model, kernel_file, output_dir, op_type):
         self.logger = setup_logger(output_dir)  # 初始化日志
         self.model = model
         self.kernel_file = kernel_file
         self.output_dir = output_dir
         self.selector = ExampleSelector()
         self.history_summary = {}
+        self.op_type = op_type
 
         try:
             with open(kernel_file, "r") as f:
@@ -129,6 +130,7 @@ class TriMLUOrchestrator:
             self.history_summary[kernel_name] = final_res.to_dict()
 
         self._save_results()
+        print("[INFO]********summary: ", self.history_summary)
         self.display_results_summary(self.history_summary)
 
     def _execute_stage(self, block_idx, stage, error=None):
@@ -140,16 +142,13 @@ class TriMLUOrchestrator:
             elif stage == "Debugging":
                 prompt = get_debug_prompt(block, error)
             elif stage == "Optimization":
-                print("[INFO]**************block: ", block)
-                example = self.selector.get_best_example(block)
-                print("[INFO]************example: ", example)
+                example = self.selector.get_best_example(block, self.op_type)
                 prompt = get_optimize_prompt(block, example)
             elif stage == "Fine-tuning":
                 prompt = get_tune_prompt(block)
 
             self.logger.info(f"Calling LLM for {stage}...")
             response_text = self.model.generate(prompt)
-
             # 尝试解析 JSON 或提取代码块
             if "```python" in response_text:
                 code = re.search(
