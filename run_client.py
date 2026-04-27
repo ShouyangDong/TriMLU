@@ -31,7 +31,11 @@ def run_trimlu_optimization(
             azure_endpoint=final_azure_endpoint,
         )
     elif model_type == "claude":
-        model_id = model_id if (model_id and model_id.startswith("claude")) else "claude-sonnet-4-5-20250929"
+        model_id = (
+            model_id
+            if (model_id and model_id.startswith("claude"))
+            else "claude-sonnet-4-5-20250929"
+        )
         final_api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         model = ClaudeModel(
             model_id=model_id,

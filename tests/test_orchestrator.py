@@ -230,7 +230,6 @@ def updated_kernel():
             content = f.read()
             self.assertEqual(content, self.orchestrator.full_code)
 
-
     def test_multiple_kernels_parsing(self):
         """测试多kernel解析"""
         # 创建包含多个kernel的临时文件

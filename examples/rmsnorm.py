@@ -4,6 +4,7 @@ import triton.language as tl
 
 torch.manual_seed(1234)
 
+
 #### START KERNEL
 @triton.jit
 def rmsnorm_triton(
@@ -52,6 +53,7 @@ def rmsnorm_triton(
         )
         tl.store(output_ptr + out_off, out, mask=x_ptr_mask)
 
+
 def rmsnorm_triton_wrapper(x, rms_w, eps=1e-6):
     batch, M, K = x.shape
     assert rms_w.shape[-1] == K
@@ -73,11 +75,14 @@ def rmsnorm_triton_wrapper(x, rms_w, eps=1e-6):
         BLOCK_N_SIZE=1024,
     )
     return out
+
+
 #### END KERNEL
 
 # =============================================================================
 # 精度测试与性能基准
 # =============================================================================
+
 
 def test_rmsnorm_correctness():
     print("🧪 正在进行 RMSNorm 精度校验...")
@@ -90,17 +95,17 @@ def test_rmsnorm_correctness():
         x = torch.randn((B, M, K), dtype=torch.float16, device="mlu")
         rms_w = torch.randn((K,), dtype=torch.float16, device="mlu")
         eps = 1e-6
-        
+
         # Triton 结果
         triton_out = rmsnorm_triton_wrapper(x, rms_w, eps)
-        
+
         # Torch 参考结果
         # RMSNorm 逻辑: x / sqrt(mean(x^2) + eps) * weight
         x_f32 = x.to(torch.float32)
         rms_w_f32 = rms_w.to(torch.float32)
         rms = torch.sqrt(torch.mean(x_f32**2, dim=-1, keepdim=True) + eps)
         torch_out = (x_f32 / rms * rms_w_f32).to(torch.float16)
-        
+
         # 比较精度
         is_correct = torch.allclose(triton_out, torch_out, atol=1e-2, rtol=1e-2)
         status = "✅ 通过" if is_correct else "❌ 失败"
@@ -108,46 +113,50 @@ def test_rmsnorm_correctness():
         if not is_correct:
             print(f"    Max Diff: {(triton_out - torch_out).abs().max()}")
 
+
 def benchmark_rmsnorm():
     print("\n🚀 正在进行性能基准测试 (Performance Benchmark)...")
-    
+
     @triton.testing.perf_report(
         triton.testing.Benchmark(
-            x_names=['K'],
-            x_vals=[1024 * i for i in range(1, 9)], 
-            line_arg='provider', 
-            line_vals=['triton', 'torch'], 
-            line_names=['Triton', 'Torch'], 
-            styles=[('blue', '-'), ('green', '-')],
-            ylabel='GB/s', 
-            plot_name='rmsnorm-performance',
-            args={'B': 4, 'M': 64}, 
+            x_names=["K"],
+            x_vals=[1024 * i for i in range(1, 9)],
+            line_arg="provider",
+            line_vals=["triton", "torch"],
+            line_names=["Triton", "Torch"],
+            styles=[("blue", "-"), ("green", "-")],
+            ylabel="GB/s",
+            plot_name="rmsnorm-performance",
+            args={"B": 4, "M": 64},
         )
     )
     def benchmark(K, B, M, provider):
-        x = torch.randn((B, M, K), device='mlu', dtype=torch.float16)
-        rms_w = torch.randn((K,), device='mlu', dtype=torch.float16)
-        
+        x = torch.randn((B, M, K), device="mlu", dtype=torch.float16)
+        rms_w = torch.randn((K,), device="mlu", dtype=torch.float16)
+
         # 手动定义 Torch 版 Benchmark 逻辑
         def torch_rmsnorm(x, w, eps=1e-6):
-            rms = torch.sqrt(torch.mean(x.to(torch.float32)**2, dim=-1, keepdim=True) + eps)
+            rms = torch.sqrt(
+                torch.mean(x.to(torch.float32) ** 2, dim=-1, keepdim=True) + eps
+            )
             return (x.to(torch.float32) / rms * w.to(torch.float32)).to(torch.float16)
 
-        if provider == 'torch':
+        if provider == "torch":
             ms = triton.testing.do_bench(lambda: torch_rmsnorm(x, rms_w))
-        if provider == 'triton':
+        if provider == "triton":
             ms = triton.testing.do_bench(lambda: rmsnorm_triton_wrapper(x, rms_w))
-        
+
         # 带宽计算: 读取 x(B*M*K*2) + 读取 w(K*2) + 写入 out(B*M*K*2)
         gbps = lambda ms: (B * M * K * 2 * 2 + K * 2) * 1e-9 / (ms * 1e-3)
         return gbps(ms)
 
     benchmark.run(show_plots=False, print_data=True)
 
+
 if __name__ == "__main__":
     # 1. 精度校验
     test_rmsnorm_correctness()
-    
+
     # 2. 性能测试
     try:
         benchmark_rmsnorm()

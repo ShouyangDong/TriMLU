@@ -2,6 +2,7 @@ import torch
 import triton
 import triton.language as tl
 
+
 #### START KERNEL
 def get_cuda_autotune_config():
     return [
@@ -17,8 +18,10 @@ def get_cuda_autotune_config():
         ),
     ]
 
+
 def get_autotune_config():
     return get_cuda_autotune_config()
+
 
 @triton.autotune(
     configs=get_autotune_config(),
@@ -79,6 +82,7 @@ def matmul_triton(
     c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
     tl.store(c_ptrs, c, mask=c_mask)
 
+
 def matmul_wrapper(a, b):
     # Check constraints.
     assert a.shape[1] == b.shape[0], "Incompatible dimensions"
@@ -92,35 +96,45 @@ def matmul_wrapper(a, b):
         triton.cdiv(M, META["BLOCK_SIZE_M"]) * triton.cdiv(N, META["BLOCK_SIZE_N"]),
     )
     matmul_triton[grid](
-        a, b, c,
-        M, N, K,
-        a.stride(0), a.stride(1),
-        b.stride(0), b.stride(1),
-        c.stride(0), c.stride(1),
+        a,
+        b,
+        c,
+        M,
+        N,
+        K,
+        a.stride(0),
+        a.stride(1),
+        b.stride(0),
+        b.stride(1),
+        c.stride(0),
+        c.stride(1),
     )
     return c
+
+
 #### END KERNEL
 
 # =============================================================================
 # 精度测试与性能基准
 # =============================================================================
 
+
 def test_matmul_correctness():
     print("🧪 正在进行 Matmul 精度校验...")
     configs = [
         (512, 512, 512),
         (1024, 1024, 1024),
-        (848, 432, 720), # 测试非对齐维度
+        (848, 432, 720),  # 测试非对齐维度
     ]
     for M, N, K in configs:
         a = torch.randn((M, K), device="mlu", dtype=torch.float16)
         b = torch.randn((K, N), device="mlu", dtype=torch.float16)
-        
+
         # Triton 结果
         triton_out = matmul_wrapper(a, b)
         # Torch 结果
         torch_out = torch.matmul(a, b)
-        
+
         # 比较精度 (FP16 允许较大的一点误差)
         is_correct = torch.allclose(triton_out, torch_out, atol=1e-2, rtol=1e-2)
         status = "✅ 通过" if is_correct else "❌ 失败"
@@ -128,41 +142,43 @@ def test_matmul_correctness():
         if not is_correct:
             print(f"    Max Diff: {(triton_out - torch_out).abs().max()}")
 
+
 def benchmark_matmul():
     print("\n🚀 正在进行性能基准测试 (Performance Benchmark)...")
-    
+
     @triton.testing.perf_report(
         triton.testing.Benchmark(
-            x_names=['M', 'N', 'K'],
-            x_vals=[1024 * i for i in range(1, 5)], 
-            line_arg='provider', 
-            line_vals=['triton', 'torch'], 
-            line_names=['Triton', 'Torch'], 
-            styles=[('blue', '-'), ('green', '-')],
-            ylabel='TFLOPS', 
-            plot_name='matmul-performance',
-            args={}, 
+            x_names=["M", "N", "K"],
+            x_vals=[1024 * i for i in range(1, 5)],
+            line_arg="provider",
+            line_vals=["triton", "torch"],
+            line_names=["Triton", "Torch"],
+            styles=[("blue", "-"), ("green", "-")],
+            ylabel="TFLOPS",
+            plot_name="matmul-performance",
+            args={},
         )
     )
     def benchmark(M, N, K, provider):
-        a = torch.randn((M, K), device='mlu', dtype=torch.float16)
-        b = torch.randn((K, N), device='mlu', dtype=torch.float16)
-        
-        if provider == 'torch':
+        a = torch.randn((M, K), device="mlu", dtype=torch.float16)
+        b = torch.randn((K, N), device="mlu", dtype=torch.float16)
+
+        if provider == "torch":
             ms = triton.testing.do_bench(lambda: torch.matmul(a, b))
-        if provider == 'triton':
+        if provider == "triton":
             ms = triton.testing.do_bench(lambda: matmul_wrapper(a, b))
-        
+
         # TFLOPS = (2 * M * N * K) / (ms * 1e-3) / 1e12
         tflops = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
         return tflops(ms)
 
     benchmark.run(show_plots=False, print_data=True)
 
+
 if __name__ == "__main__":
     # 1. 精度校验
     test_matmul_correctness()
-    
+
     # 2. 性能测试
     try:
         benchmark_matmul()
