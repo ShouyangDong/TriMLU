@@ -83,21 +83,37 @@ NO explanations, NO JSON, and NO text before or after the code block.
 
 
 # 4. 调优阶段
-def get_tune_prompt(current_code):
+def get_tune_prompt(current_code, example=None):
+    """
+    Generate prompt for hardware-level tuning.
+    :param current_code: The kernel code to be tuned.
+    :param example: Optional reference example showing autotune patterns.
+    """
+    example_section = ""
+    if example:
+        example_section = f"""
+### REFERENCE EXAMPLE (Best Practice):
+{example}
+"""
+
     prompt = f"""
-You are a Hardware Tuning Expert. 
-Inject `@triton.autotune` into the following kernel.
+You are a Hardware Tuning Expert.
+Inject `@triton.autotune` into the following kernel to maximize throughput on MLU hardware.
 
 ### TUNING PARAMETERS:
-- BLOCK_M/N/K: [32, 64, 128, 256]
-- num_stages: [1, 2, 3, 4, 5]
-- num_warps: [1, 4]
+- Identify the tiling parameters used in the kernel (e.g., BLOCK_SIZE, BLOCK_M, BLOCK_N, BLOCK_K, etc.).
+- Extract and define appropriate search spaces for these parameters based on the reference example, hardware constraints, and kernel complexity.
+- Define a suitable range for `num_stages` (e.g., [1, 2, 3, 4]) based on the memory constraints and pipeline requirements seen in the reference example.
+- num_warps: [1, 4, 8]
+
+{example_section}
 
 ### CURRENT CODE:
 {current_code}
 
 ### OUTPUT INSTRUCTIONS:
-Directly provide the full Python code (including decorator and configs) within a ```python ... ``` code block. 
+Directly provide the full Python code (including the @triton.autotune decorator, configs list, and the kernel) within a ```python ... ``` code block.
+Ensure that all necessary hyperparameters are passed as `tl.constexpr` to the kernel.
 NO explanations, NO JSON, and NO text before or after the code block.
 """
     return format_as_user_msg(prompt)
