@@ -1,4 +1,5 @@
 import math
+import json
 import torch
 import triton
 import triton.language as tl
@@ -198,18 +199,8 @@ def kernel_test_1d(inputs):
     if has_res:
         res0 = torch.randn((N, H, F), device=get_device(), dtype=torch.float16)
 
-    print(f"\n\n\n########### N:{N}, H:{H}, F:{F}, K0:{K0}, C:{C}, S0:{S0}##########")
-
-    triton_output0 = triton_implicit_gemm_conv1d_fwd(
-        a0,
-        b0,
-        bias0,
-        res0,
-        S0,
-        P0,
-        D0,
-    )
-
+    # 验证正确性
+    triton_output0 = triton_implicit_gemm_conv1d_fwd(a0, b0, bias0, res0, S0, P0, D0)
     ref_out0 = (
         torch.nn.functional.conv1d(
             a0.transpose(-1, -2), b0.transpose(-1, -2), bias0, S0, P0, D0
@@ -220,40 +211,39 @@ def kernel_test_1d(inputs):
     max_diff0 = torch.max(torch.abs(triton_output0 - ref_out0)).item()
     mean_diff0 = torch.mean(torch.abs(triton_output0 - ref_out0)).item()
 
-    print(f"max_diff0: {max_diff0:.4f}  " + f"mean_diff0: {mean_diff0:.4f}")
-    assert max_diff0 < 0.4
-    assert mean_diff0 < 0.03
+    # 保持断言以确保功能正确性，Orchestrator 会捕获 AssertionError 并进入 Debug 阶段
+    assert max_diff0 < 0.4, f"max_diff too large: {max_diff0}"
+    assert mean_diff0 < 0.03, f"mean_diff too large: {mean_diff0}"
 
+    # 性能测试
     def conv_triton():
-        triton_output0 = triton_implicit_gemm_conv1d_fwd(
-            a0,
-            b0,
-            bias0,
-            res0,
-            S0,
-            P0,
-            D0,
-        )
+        triton_implicit_gemm_conv1d_fwd(a0, b0, bias0, res0, S0, P0, D0)
 
     def conv_torch():
-        ref_out0 = (
+        (
             torch.nn.functional.conv1d(
                 a0.transpose(-1, -2), b0.transpose(-1, -2), bias0, S0, P0, D0
             ).transpose(-1, -2)
             + res0
         )
 
-    OH0 = (H + 2 * P0 - D0 * (K0 - 1) - 1) // S0 + 1
-
     ms_tl = triton.testing.do_bench(conv_triton)
     ms_torch = triton.testing.do_bench(conv_torch)
+
+    # 打印单组调试信息（Orchestrator 日志中可见）
+    OH0 = (H + 2 * P0 - D0 * (K0 - 1) - 1) // S0 + 1
     flops = 2 * N * OH0 * F * K0 * C
     print(
-        f"triton: {ms_tl:.3f} ms, {N=}, {H=}, {F=}, {K0=}, {C=}, {S0=}, FLOPS={flops*1e-9/ms_tl:.2f} T/s"
+        f"Test Case N={N}, C={C}, H={H}, D={D0} -> Triton: {ms_tl:.3f} ms, Torch: {ms_torch:.3f} ms"
     )
-    print(
-        f"Torch: {ms_torch:.3f} ms, {N=}, {H=}, {F=}, {K0=}, {C=}, {S0=}, FLOPS={flops*1e-9/ms_torch:.2f} T/s"
-    )
+
+    # 返回结果字典
+    return {
+        "config": f"N{N}_C{C}_H{H}_D{D0}",
+        "latency": float(ms_tl),
+        "torch_ms": float(ms_torch),
+        "speedup": float(ms_torch / ms_tl) if ms_tl > 0 else 1.0,
+    }
 
 
 def get_padding(kernel_size, dilation=1):
@@ -276,11 +266,22 @@ if __name__ == "__main__":
         ]:
             for D in [1, 3, 5]:
                 S0 = 1
-                F = C  # F: out_channel, C: in_channel
+                F = C
                 D0 = D
                 K0 = 7
                 P0 = get_padding(K0, D0)
                 args_list.append((N, C, H, F, K0, S0, D0, P0, True, True, do_perf))
 
+    # 收集所有结果
+    all_perf_results = []
     for args in args_list:
-        kernel_test_1d(args)
+        try:
+            res = kernel_test_1d(args)
+            all_perf_results.append(res)
+        except Exception as e:
+            # 如果某一组失败了，直接抛出，让 Orchestrator 捕获错误日志
+            raise e
+
+    # 最终打印符合 Orchestrator 协议的 JSON 字符串
+    # 这是建立反馈闭环的关键
+    print(f"__TRIMLU_PERF_JSON__:{json.dumps(all_perf_results)}")
