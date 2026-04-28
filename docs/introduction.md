@@ -38,7 +38,7 @@ Phase 1: Foundation (Current - 2026.04)
 
 - [x] Example retrieval system based on Cosine Similarity.
 
-- [X] Integration with Cambricon Triton toolchains for real-time compilation checks.
+- [x] Integration with Cambricon Triton toolchains for real-time compilation checks.
 
 Phase 2: Intelligence & Accuracy (2026.05)
 
@@ -50,7 +50,7 @@ Phase 2: Intelligence & Accuracy (2026.05)
 
 Phase 3: Performance & Scale (2026.06)
 
-- [ ] Performance Profiling: Integrate cnperf data into the optimization loop to detect bank conflicts and instruction stalls.
+- [x] Performance Profiling: Integrate cnperf data into the optimization loop to detect bank conflicts and instruction stalls.
 
 - [ ] Multi-Kernel Support: Optimize complex models with interconnected kernels, ensuring efficient data movement between operators.
 
