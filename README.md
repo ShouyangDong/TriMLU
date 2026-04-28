@@ -30,12 +30,34 @@ import triton
 import triton.language as tl
 
 # 标记外的内容（如 import）会被原样保留
+# ==========================================
+# 1. 内核标记规范：使用 #### START/END KERNEL
+# ==========================================
 #### START KERNEL
 @triton.jit
 def matmul_kernel(A, B, C, BLOCK_SIZE: tl.constexpr):
     # 这里是待处理的核心代码
     ...
 #### END KERNEL
+
+# ==========================================
+# 2. 性能验证规范：必须输出 __TRIMLU_PERF_JSON__
+# ==========================================
+
+if __name__ == "__main__":
+    # 模拟测试数据
+    # ... data initialization ...
+
+    # 执行性能测试（通常建议多次迭代取平均）
+    latencies = []
+    for _ in range(10):
+        # ms = triton.testing.do_bench(lambda: matmul_kernel[grid](...))
+        ms = 0.123 # 示例数值
+        latencies.append({"latency": ms})
+
+    # 重要：Orchestrator 通过识别此特定前缀来解析性能结果
+    # 格式要求：__TRIMLU_PERF_JSON__:<JSON_LIST_OR_DICT>
+    print(f"__TRIMLU_PERF_JSON__:{json.dumps(latencies)}")
 ```
 
 ## ⚡ 3. 运行转换 (Execute Conversion)
