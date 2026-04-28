@@ -80,7 +80,7 @@ def embedding_wrapper(input_ids, weight: torch.Tensor, vob_start_id, vob_end_id)
 #### END KERNEL
 
 # =============================================================================
-# 精度测试与性能基准
+# 2. 精度测试与性能基准 (适配 TriMLU 协议)
 # =============================================================================
 
 
@@ -118,10 +118,14 @@ def test_embedding_correctness():
         print(f"  - Sequence Length {seq_len:4d}: {status}")
         if not is_correct:
             print(f"    Max Diff: {(triton_out - torch_out).abs().max()}")
+            return False
+    return True
 
 
 def benchmark_embedding():
     print("\n🚀 正在进行性能基准测试 (Performance Benchmark)...")
+
+    results_for_trimlu = []
 
     @triton.testing.perf_report(
         triton.testing.Benchmark(
@@ -143,28 +147,37 @@ def benchmark_embedding():
         weight = torch.randn(vob_end - vob_start, D, dtype=torch.float32, device="mlu")
 
         if provider == "torch":
-            # 简化 Torch 版测试，仅包含核心 embedding
             ms = triton.testing.do_bench(
                 lambda: torch.nn.functional.embedding(input_ids, weight)
             )
-        if provider == "triton":
+        else:
             ms = triton.testing.do_bench(
                 lambda: embedding_wrapper(input_ids, weight, vob_start, vob_end)
             )
+            # 记录 Triton 延迟用于协议输出
+            results_for_trimlu.append({"latency": ms, "seq_len": SEQ_LEN})
 
         # 带宽计算：读取 input_ids(4 bytes) + 读取 weight(D * 4 bytes) + 写入 out(D * 4 bytes)
-        gbps = lambda ms: (SEQ_LEN * 4 + SEQ_LEN * D * 4 * 2) * 1e-9 / (ms * 1e-3)
-        return gbps(ms)
+        gbps = (SEQ_LEN * 4 + SEQ_LEN * D * 4 * 2) * 1e-9 / (ms * 1e-3)
+        return gbps
 
     benchmark.run(show_plots=False, print_data=True)
+    return results_for_trimlu
 
 
 if __name__ == "__main__":
     # 1. 运行精度测试
-    test_embedding_correctness()
+    passed = test_embedding_correctness()
 
-    # 2. 运行性能测试
-    try:
-        benchmark_embedding()
-    except Exception as e:
-        print(f"⚠️ 性能测试跳过或出错: {e}")
+    if not passed:
+        # 精度未通过，返回空结果
+        print("__TRIMLU_PERF_JSON__:[]")
+    else:
+        # 2. 运行性能测试
+        try:
+            perf_data = benchmark_embedding()
+            # Orchestrator 通过识别此特定前缀来解析性能结果
+            print(f"__TRIMLU_PERF_JSON__:{json.dumps(perf_data)}")
+        except Exception as e:
+            print(f"⚠️ 性能测试跳过或出错: {e}")
+            print("__TRIMLU_PERF_JSON__:[]")
