@@ -5,9 +5,11 @@ import shutil
 import json
 from unittest.mock import MagicMock
 from core.orchestrator import TriMLUOrchestrator
+
+
 class TestAgentIntegration(unittest.TestCase):
     """Integration tests for the Agent Pipeline"""
-    
+
     def setUp(self):
         # 1. Prepare temporary workspace and directories
         self.test_dir = tempfile.mkdtemp()
@@ -52,11 +54,13 @@ def naive_add(x_ptr, y_ptr, n_elements):
             model=self.mock_model,
             kernel_file=self.test_kernel,
             output_dir=self.output_dir,
-            op_type="elementwise"
+            op_type="elementwise",
         )
 
         # Verify successful parsing
-        self.assertEqual(len(agent.kernel_blocks), 1, "Should parse one core kernel block")
+        self.assertEqual(
+            len(agent.kernel_blocks), 1, "Should parse one core kernel block"
+        )
 
         # Execute full flow
         agent.run_pipeline(max_retries=1)
@@ -83,7 +87,7 @@ def naive_add(x_ptr, y_ptr, n_elements):
             model=self.mock_model,
             kernel_file=self.test_kernel,
             output_dir=self.output_dir,
-            op_type="elementwise"
+            op_type="elementwise",
         )
 
         # Execute pipeline
@@ -95,6 +99,7 @@ def naive_add(x_ptr, y_ptr, n_elements):
             content = f.read()
             # Verify original code is gone
             self.assertIn("naive_add", content)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

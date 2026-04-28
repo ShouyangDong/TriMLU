@@ -12,7 +12,14 @@ try:
 except ImportError:
     # Mocking classes for standalone environment consistency
     class TestResult:
-        def __init__(self, success, message="", execution_time=None, performance_metrics=None, error=None):
+        def __init__(
+            self,
+            success,
+            message="",
+            execution_time=None,
+            performance_metrics=None,
+            error=None,
+        ):
             self.success = success
             self.message = message
             self.execution_time = execution_time
@@ -26,19 +33,21 @@ except ImportError:
             self.output_dir = output_dir
             self.op_type = op_type
             self.history_summary = {}
-            with open(kernel_file, 'r') as f:
+            with open(kernel_file, "r") as f:
                 self.full_code = f.read()
             self.kernel_blocks = ["sample_kernel_logic"]
-        
+
         def _parse_kernel_file(self):
             return self.kernel_blocks
-            
+
         def _update_full_code(self, index, new_content):
             self.full_code = new_content
             self.kernel_blocks[index] = new_content
 
+
 class MockModel:
     """Mock LLM Model object"""
+
     def __init__(self, responses=None):
         self.responses = responses or [
             {"code": "def kernel(): pass"},
@@ -54,6 +63,7 @@ class MockModel:
             self.call_count += 1
             return response
         return {"code": "def kernel(): pass"}
+
 
 class TestTriMLUOrchestrator(unittest.TestCase):
     """Unit tests for TriMLUOrchestrator"""
@@ -92,7 +102,7 @@ def another_function():
             model=self.mock_model,
             kernel_file=self.temp_kernel_file.name,
             output_dir=self.output_dir,
-            op_type="elementwise"
+            op_type="elementwise",
         )
 
     def tearDown(self):
@@ -111,14 +121,14 @@ def another_function():
 
     def test_parse_kernel_file(self):
         """Test kernel file block parsing"""
-        if hasattr(self.orchestrator, '_parse_kernel_file'):
+        if hasattr(self.orchestrator, "_parse_kernel_file"):
             blocks = self.orchestrator._parse_kernel_file()
             self.assertTrue(len(blocks) >= 1)
             # Check content if possible
 
     def test_update_full_code(self):
         """Test code updating mechanism"""
-        if hasattr(self.orchestrator, '_update_full_code'):
+        if hasattr(self.orchestrator, "_update_full_code"):
             new_content = """
 #### START KERNEL
 def updated_kernel():
@@ -153,7 +163,7 @@ def kernel_2():
                 model=MockModel(),
                 kernel_file=multi_kernel_file.name,
                 output_dir=self.output_dir,
-                op_type="custom"
+                op_type="custom",
             )
             self.assertEqual(len(multi_orchestrator.kernel_blocks), 2)
         finally:
@@ -172,11 +182,12 @@ def kernel_2():
                 model=MockModel(),
                 kernel_file=empty_kernel_file.name,
                 output_dir=self.output_dir,
-                op_type="none"
+                op_type="none",
             )
             self.assertEqual(len(empty_orchestrator.kernel_blocks), 1)
         finally:
             os.remove(empty_kernel_file.name)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
