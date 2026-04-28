@@ -1,4 +1,5 @@
 import json
+from typing import Dict
 
 # ==============================================================================
 # MLU 核心约束
@@ -101,3 +102,37 @@ Directly provide the full Python code (including decorator and configs) within a
 NO explanations, NO JSON, and NO text before or after the code block.
 """
     return format_as_user_msg(prompt)
+
+
+def get_profiler_prompt(current_code: str, metrics: Dict) -> str:
+    """
+    Generates a structured prompt for the LLM based on extracted hardware metrics.
+    """
+    efficiency = metrics.get("compute_efficiency", 0) * 100
+    conflicts = metrics.get("bank_conflicts", 0)
+    stalls = metrics.get("data_stalls", 0)
+
+    prompt = f"""Analyze the Cambricon MLU profiler data to optimize the following kernel.
+
+HARDWARE PERFORMANCE METRICS:
+- Compute Efficiency: {efficiency:.2f}% (ct_cycles / lt_cycles)
+- Total LRAM Bank Conflicts: {conflicts}
+- Total Data Dependency Stalls: {stalls}
+
+OPTIMIZATION TASK:
+1. Identify the PRIMARY BOTTLENECK based on the metrics provided.
+2. If Compute Efficiency is low (<50%), focus on instruction throughput and reducing pipeline bubbles.
+3. If Bank Conflicts are high (>0), examine memory access patterns in LRAM and suggest padding or stride adjustments.
+4. If Data Stalls are high, suggest loop unrolling or instruction rescheduling to hide latency.
+
+CURRENT KERNEL CODE:
+```python
+{current_code}
+```
+
+REQUIRED OUTPUT:
+1. BOTTLENECK ANALYSIS: Explain the relationship between the hardware metrics and the code logic.
+2. SPECIFIC REFACTORING STEPS: Provide concrete Bang-C/Triton-MLU code changes.
+3. PREDICTED IMPACT: How will these changes improve the cycles or efficiency?
+"""
+    return prompt
