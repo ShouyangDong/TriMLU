@@ -36,7 +36,7 @@ def setup_logger(output_dir):
 
 
 class TriMLUOrchestrator:
-    def __init__(self, model, kernel_file, output_dir, op_type):
+    def __init__(self, model, kernel_file, output_dir, op_type=None):
         self.logger = setup_logger(output_dir)
         self.model = model
         self.kernel_file = kernel_file
