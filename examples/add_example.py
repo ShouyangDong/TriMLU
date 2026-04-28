@@ -42,6 +42,11 @@ def add_wrapper(x, y):
 # =============================================================================
 
 
+# =============================================================================
+# 2. 精度测试与性能基准 (适配 TriMLU 协议)
+# =============================================================================
+
+
 def test_add_correctness():
     print("🧪 正在进行精度校验...")
     configs = [2**10, 2**15, 2**20]
@@ -60,10 +65,14 @@ def test_add_correctness():
         print(f"  - Size {size:8d}: {status}")
         if not is_correct:
             print(f"    Max Diff: {(triton_output - torch_output).abs().max()}")
+            return False
+    return True
 
 
 def benchmark_add():
     print("\n🚀 正在进行性能基准测试 (Performance Benchmark)...")
+
+    results_for_trimlu = []
 
     @triton.testing.perf_report(
         triton.testing.Benchmark(
@@ -84,21 +93,32 @@ def benchmark_add():
 
         if provider == "torch":
             ms = triton.testing.do_bench(lambda: x + y)
-        if provider == "triton":
+        else:
             ms = triton.testing.do_bench(lambda: add_wrapper(x, y))
+            # 记录 Triton 延迟用于协议输出
+            results_for_trimlu.append({"latency": ms, "n_elements": N})
 
-        gbps = lambda ms: 3 * x.numel() * x.element_size() * 1e-9 / (ms * 1e-3)
-        return gbps(ms)
+        # 带宽计算: 2次读取 (x, y) + 1次写入 (out)
+        gbps = 3 * x.numel() * x.element_size() * 1e-9 / (ms * 1e-3)
+        return gbps
 
     benchmark.run(show_plots=False, print_data=True)
+    return results_for_trimlu
 
 
 if __name__ == "__main__":
     # 1. 运行精度测试
-    test_add_correctness()
+    passed = test_add_correctness()
 
-    # 2. 运行性能测试
-    try:
-        benchmark_add()
-    except Exception as e:
-        print(f"⚠️ 性能测试跳过或出错: {e}")
+    if not passed:
+        # 精度未通过，返回空结果
+        print("__TRIMLU_PERF_JSON__:[]")
+    else:
+        # 2. 运行性能测试
+        try:
+            perf_data = benchmark_add()
+            # Orchestrator 通过识别此特定前缀来解析性能结果
+            print(f"__TRIMLU_PERF_JSON__:{json.dumps(perf_data)}")
+        except Exception as e:
+            print(f"⚠️ 性能测试跳过或出错: {e}")
+            print("__TRIMLU_PERF_JSON__:[]")

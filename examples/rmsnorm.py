@@ -80,7 +80,7 @@ def rmsnorm_triton_wrapper(x, rms_w, eps=1e-6):
 #### END KERNEL
 
 # =============================================================================
-# 精度测试与性能基准
+# 2. 精度测试与性能基准 (适配 TriMLU 协议)
 # =============================================================================
 
 
@@ -100,7 +100,6 @@ def test_rmsnorm_correctness():
         triton_out = rmsnorm_triton_wrapper(x, rms_w, eps)
 
         # Torch 参考结果
-        # RMSNorm 逻辑: x / sqrt(mean(x^2) + eps) * weight
         x_f32 = x.to(torch.float32)
         rms_w_f32 = rms_w.to(torch.float32)
         rms = torch.sqrt(torch.mean(x_f32**2, dim=-1, keepdim=True) + eps)
@@ -112,10 +111,15 @@ def test_rmsnorm_correctness():
         print(f"  - Shape ({B}, {M}, {K}): {status}")
         if not is_correct:
             print(f"    Max Diff: {(triton_out - torch_out).abs().max()}")
+            return False
+    return True
 
 
 def benchmark_rmsnorm():
     print("\n🚀 正在进行性能基准测试 (Performance Benchmark)...")
+
+    # 用于收集数据并转换成约定格式
+    results_for_trimlu = []
 
     @triton.testing.perf_report(
         triton.testing.Benchmark(
@@ -133,8 +137,8 @@ def benchmark_rmsnorm():
     def benchmark(K, B, M, provider):
         x = torch.randn((B, M, K), device="mlu", dtype=torch.float16)
         rms_w = torch.randn((K,), device="mlu", dtype=torch.float16)
+        eps = 1e-6
 
-        # 手动定义 Torch 版 Benchmark 逻辑
         def torch_rmsnorm(x, w, eps=1e-6):
             rms = torch.sqrt(
                 torch.mean(x.to(torch.float32) ** 2, dim=-1, keepdim=True) + eps
@@ -142,23 +146,33 @@ def benchmark_rmsnorm():
             return (x.to(torch.float32) / rms * w.to(torch.float32)).to(torch.float16)
 
         if provider == "torch":
-            ms = triton.testing.do_bench(lambda: torch_rmsnorm(x, rms_w))
-        if provider == "triton":
-            ms = triton.testing.do_bench(lambda: rmsnorm_triton_wrapper(x, rms_w))
+            ms = triton.testing.do_bench(lambda: torch_rmsnorm(x, rms_w, eps))
+        else:
+            ms = triton.testing.do_bench(lambda: rmsnorm_triton_wrapper(x, rms_w, eps))
+            # 将 Triton 的耗时记录下来用于 TriMLU 评估
+            results_for_trimlu.append({"latency": ms, "K": K})
 
         # 带宽计算: 读取 x(B*M*K*2) + 读取 w(K*2) + 写入 out(B*M*K*2)
         gbps = lambda ms: (B * M * K * 2 * 2 + K * 2) * 1e-9 / (ms * 1e-3)
         return gbps(ms)
 
     benchmark.run(show_plots=False, print_data=True)
+    return results_for_trimlu
 
 
 if __name__ == "__main__":
     # 1. 精度校验
-    test_rmsnorm_correctness()
+    passed = test_rmsnorm_correctness()
 
-    # 2. 性能测试
-    try:
-        benchmark_rmsnorm()
-    except Exception as e:
-        print(f"⚠️ 性能测试跳过或出错: {e}")
+    if not passed:
+        # 如果精度没过，打印空 JSON 强制拒绝优化
+        print("__TRIMLU_PERF_JSON__:[]")
+    else:
+        # 2. 性能测试
+        try:
+            perf_data = benchmark_rmsnorm()
+            # Orchestrator 通过识别此特定前缀来解析性能结果
+            print(f"__TRIMLU_PERF_JSON__:{json.dumps(perf_data)}")
+        except Exception as e:
+            print(f"⚠️ 性能测试跳过或出错: {e}")
+            print("__TRIMLU_PERF_JSON__:[]")
