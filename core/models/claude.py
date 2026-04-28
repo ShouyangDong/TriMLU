@@ -9,8 +9,6 @@ class ClaudeModel:
     def __init__(self, model_id="claude-sonnet-4-5-20250929", api_key=None):
         assert api_key is not None, "No API key provided."
         self.model_id = model_id
-        print("model: ", self.model_id)
-        print("api_key: ", api_key)
         client_kwargs = {"api_key": api_key}
         client_kwargs["base_url"] = "https://api.ezclaude.com"
         self.client = anthropic.Anthropic(**client_kwargs)

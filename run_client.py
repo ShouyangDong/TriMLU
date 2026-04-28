@@ -5,6 +5,7 @@ import os
 import argparse
 import sys
 
+
 def run_trimlu_optimization(
     kernel_file: str,
     model_type: str = "openai",
@@ -31,7 +32,11 @@ def run_trimlu_optimization(
             azure_endpoint=final_azure_endpoint,
         )
     elif model_type == "claude":
-        model_id = model_id if (model_id and model_id.startswith("claude")) else "claude-sonnet-4-5-20250929"
+        model_id = (
+            model_id
+            if (model_id and model_id.startswith("claude"))
+            else "claude-sonnet-4-5-20250929"
+        )
         final_api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         model = ClaudeModel(model_id=model_id, api_key=final_api_key)
     elif model_type == "gemini":
@@ -41,10 +46,7 @@ def run_trimlu_optimization(
         raise ValueError(f"Unsupported model type: {model_type}")
 
     orchestrator = TriMLUOrchestrator(
-        model=model, 
-        kernel_file=kernel_file, 
-        output_dir=output_dir,
-        op_type=op_type
+        model=model, kernel_file=kernel_file, output_dir=output_dir, op_type=op_type
     )
 
     if verbose:
@@ -66,24 +68,51 @@ def run_trimlu_optimization(
         print(f"❌ Execution Failed: {e}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         return None
 
     print(f"\n✅ Migration & Optimization Completed! Results saved in: {output_dir}")
     return output_dir
 
-def main():
-    parser = argparse.ArgumentParser(description="TriMLU: Automated Triton Kernel Migration and Optimization for Cambricon MLU")
 
-    parser.add_argument("kernel_file", type=str, help="Path to the original Triton Kernel file (.py)")
-    parser.add_argument("--model-type", type=str, default="openai", choices=["openai", "claude", "gemini"], help="LLM Provider")
-    parser.add_argument("--model-id", type=str, default="gpt-4o", help="Specific Model ID")
-    parser.add_argument("--op-type", type=str, default=None, help="Operator type (e.g., gemm, elewise). Auto-detects via similarity if not provided.")
-    parser.add_argument("--output-dir", type=str, default="outputs", help="Output directory")
-    parser.add_argument("--iters", type=int, default=3, help="Max iteration/retry count")
-    parser.add_argument("--target", type=str, default="MLU590", help="Target hardware platform")
+def main():
+    parser = argparse.ArgumentParser(
+        description="TriMLU: Automated Triton Kernel Migration and Optimization for Cambricon MLU"
+    )
+
+    parser.add_argument(
+        "kernel_file", type=str, help="Path to the original Triton Kernel file (.py)"
+    )
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="openai",
+        choices=["openai", "claude", "gemini"],
+        help="LLM Provider",
+    )
+    parser.add_argument(
+        "--model-id", type=str, default="gpt-4o", help="Specific Model ID"
+    )
+    parser.add_argument(
+        "--op-type",
+        type=str,
+        default=None,
+        help="Operator type (e.g., gemm, elewise). Auto-detects via similarity if not provided.",
+    )
+    parser.add_argument(
+        "--output-dir", type=str, default="outputs", help="Output directory"
+    )
+    parser.add_argument(
+        "--iters", type=int, default=3, help="Max iteration/retry count"
+    )
+    parser.add_argument(
+        "--target", type=str, default="MLU590", help="Target hardware platform"
+    )
     parser.add_argument("--api-key", type=str, default=None, help="API Key")
-    parser.add_argument("--endpoint", type=str, default=None, help="Azure Endpoint (OpenAI only)")
+    parser.add_argument(
+        "--endpoint", type=str, default=None, help="Azure Endpoint (OpenAI only)"
+    )
     parser.add_argument("--quiet", action="store_true", help="Disable verbose logging")
 
     args = parser.parse_args()
@@ -104,6 +133,7 @@ def main():
         azure_endpoint=args.endpoint,
         verbose=not args.quiet,
     )
+
 
 if __name__ == "__main__":
     main()
