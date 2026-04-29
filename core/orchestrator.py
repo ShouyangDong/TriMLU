@@ -84,7 +84,7 @@ class TriMLUOrchestrator:
             self.logger.error(f"更新时索引 {block_idx} 超出范围")
 
     def run_pipeline(self, max_retries=3):
-        self.logger.info("🚀 启动 TriMLU 性能验证流水线 (平均性能版)...")
+        self.logger.info("🚀 启动 TriMLU 性能验证流水线...")
 
         for idx in range(len(self.kernel_blocks)):
             kernel_name = f"Kernel_{idx+1}"
@@ -122,40 +122,68 @@ class TriMLUOrchestrator:
 
             self.logger.info(f"📈 基准性能 (平均延迟): {best_avg_latency:.4f} ms")
 
-            for opt_idx in range(max_retries):
-                self.logger.info(f"[{kernel_name}] 优化尝试 {opt_idx+1}/{max_retries}")
+            self.logger.info(f"[{kernel_name}] 执行优化")
 
-                # 仅执行优化生成
-                self._execute_stage(idx, "Optimization")
+            # 仅执行优化生成
+            self._execute_stage(idx, "Optimization")
 
-                opt_res = self._validate_locally(kernel_name)
-                current_avg_latency = self._get_avg_latency(opt_res)
+            opt_res = self._validate_locally(kernel_name)
+            current_avg_latency = self._get_avg_latency(opt_res)
 
-                # 只有在功能正确且性能确实提升时才接受
-                if opt_res.pass_exe and current_avg_latency < (
-                    best_avg_latency * 0.999
-                ):
-                    self.logger.info(
-                        f"🚀 性能提升: {best_avg_latency:.4f}ms -> {current_avg_latency:.4f}ms"
-                    )
-                    best_avg_latency = current_avg_latency
-                    best_code_state = self.full_code
+            # 只有在功能正确且性能确实提升时才接受
+            if opt_res.pass_exe and current_avg_latency < (best_avg_latency * 0.999):
+                self.logger.info(
+                    f"🚀 性能提升: {best_avg_latency:.4f}ms -> {current_avg_latency:.4f}ms"
+                )
+                best_avg_latency = current_avg_latency
+                best_code_state = self.full_code
+            else:
+                # 关键修改：如果是代码运行出错，打印具体的错误原因
+                if not opt_res.pass_exe:
+                    reason = "代码运行出错"
+                    self.logger.warning(f"⚠️ 优化被拒绝 ({reason})")
+                    self.logger.error(f"优化版报错详情:\n{opt_res.error}")
                 else:
-                    # 关键修改：如果是代码运行出错，打印具体的错误原因
-                    if not opt_res.pass_exe:
-                        reason = "代码运行出错"
-                        self.logger.warning(f"⚠️ 优化被拒绝 ({reason})")
-                        self.logger.error(f"优化版报错详情:\n{opt_res.error}")
-                    else:
-                        reason = "性能未提升"
-                        self.logger.warning(
-                            f"⚠️ 优化被拒绝 ({reason}, 当前平均延迟: {current_avg_latency:.4f}ms)"
-                        )
+                    reason = "性能未提升"
+                    self.logger.warning(
+                        f"⚠️ 优化被拒绝 ({reason}, 当前平均延迟: {current_avg_latency:.4f}ms)"
+                    )
 
-                    # 回退到当前最优状态
-                    self.full_code = best_code_state
-                    self.kernel_blocks = self._parse_kernel_file()
+                # 回退到当前最优状态
+                self.full_code = best_code_state
+                self.kernel_blocks = self._parse_kernel_file()
 
+            # 阶段 4: 基于自动调优的迭代优化
+            self.logger.info(f"[{kernel_name}] 执行自动调优优化")
+
+            # 仅执行优化生成
+            self._execute_stage(idx, "Autotuning")
+
+            opt_res = self._validate_locally(kernel_name)
+            current_avg_latency = self._get_avg_latency(opt_res)
+
+            # 只有在功能正确且性能确实提升时才接受
+            if opt_res.pass_exe and current_avg_latency < (best_avg_latency * 0.999):
+                self.logger.info(
+                    f"🚀 性能提升: {best_avg_latency:.4f}ms -> {current_avg_latency:.4f}ms"
+                )
+                best_avg_latency = current_avg_latency
+                best_code_state = self.full_code
+            else:
+                # 关键修改：如果是代码运行出错，打印具体的错误原因
+                if not opt_res.pass_exe:
+                    reason = "代码运行出错"
+                    self.logger.warning(f"⚠️ 优化被拒绝 ({reason})")
+                    self.logger.error(f"优化版报错详情:\n{opt_res.error}")
+                else:
+                    reason = "性能未提升"
+                    self.logger.warning(
+                        f"⚠️ 优化被拒绝 ({reason}, 当前平均延迟: {current_avg_latency:.4f}ms)"
+                    )
+
+                # 回退到当前最优状态
+                self.full_code = best_code_state
+                self.kernel_blocks = self._parse_kernel_file()
             self.history_summary[kernel_name] = self._validate_locally(
                 kernel_name
             ).to_dict()
@@ -182,7 +210,9 @@ class TriMLUOrchestrator:
             elif stage == "Optimization":
                 example = self.selector.get_best_example(block, self.op_type)
                 prompt = get_optimize_prompt(block, example)
-
+            elif stage == "Autotuning":
+                example = self.selector.get_best_example(block, self.op_type)
+                prompt = get_tune_prompt(block, example)
             response_text = self.model.generate(prompt)
             code_match = re.search(r"```python\n(.*?)\n```", response_text, re.DOTALL)
             code = code_match.group(1) if code_match else response_text
@@ -197,7 +227,7 @@ class TriMLUOrchestrator:
 
         try:
             proc = subprocess.run(
-                ["python3", tmp_path], capture_output=True, text=True, timeout=150
+                ["python3", tmp_path], capture_output=True, text=True, timeout=300
             )
 
             if proc.returncode != 0:
