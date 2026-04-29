@@ -20,8 +20,7 @@ class TestAgentIntegration(unittest.TestCase):
         # 2. Create a tagged GPU Kernel file for testing
         self.test_kernel = os.path.join(self.test_dir, "test_kernel.py")
         with open(self.test_kernel, "w") as f:
-            f.write(
-                """
+            f.write("""
 import triton
 import triton.language as tl
 
@@ -31,8 +30,7 @@ def naive_add(x_ptr, y_ptr, n_elements):
     idx = tl.program_id(0)
     tl.store(y_ptr + idx, tl.load(x_ptr + idx))
 #### END KERNEL
-"""
-            )
+""")
 
         # 3. Mock the Model
         self.mock_model = MagicMock()
